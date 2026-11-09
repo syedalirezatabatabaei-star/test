@@ -1,5 +1,5 @@
 {
-  "name": "SnappMarket Isfahan Price Collection - Multi Point + Excel",
+  "name": "SnappMarket Isfahan - 100 Points - Multi-sheet Product Price Research",
   "nodes": [
     {
       "parameters": {
@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const body = $json.body ?? $json;\nconst productName = String(body.product_name ?? '').trim();\nif (!productName) throw new Error('product_name الزامی است');\nconst city = String(body.location?.city ?? body.city ?? 'اصفهان').trim();\nconst area = String(body.location?.area ?? body.area ?? 'کل شهر').trim();\n\nconst safeNumber = (value, fallback, min, max) => {\n  const n = Number(value ?? fallback);\n  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;\n};\nconst centerLat = safeNumber(body.location?.latitude ?? body.latitude, 32.6546, 24, 40);\nconst centerLong = safeNumber(body.location?.longitude ?? body.longitude, 51.6680, 44, 64);\nconst latStep = safeNumber(body.location?.lat_step, 0.060, 0.010, 0.100);\nconst longStep = safeNumber(body.location?.long_step, 0.060, 0.010, 0.100);\nconst pageSize = Math.round(safeNumber(body.page_size, 36, 1, 100));\nconst maxPages = Math.round(safeNumber(body.max_pages, 30, 1, 50));\n\nconst offsets = [2, 1, 0, -1, -2];\nconst rowLabel = dy => dy === 2 ? 'شمال دور' : dy === 1 ? 'شمال' : dy === 0 ? 'مرکز' : dy === -1 ? 'جنوب' : 'جنوب دور';\nconst colLabel = dx => dx === -2 ? 'غرب دور' : dx === -1 ? 'غرب' : dx === 0 ? 'مرکز' : dx === 1 ? 'شرق' : 'شرق دور';\nconst points = [];\nfor (let r = 0; r < offsets.length; r++) {\n  for (let c = 0; c < offsets.length; c++) {\n    const dy = offsets[r], dx = offsets[c];\n    points.push({\n      key: 'R' + (r + 1) + 'C' + (c + 1),\n      label: rowLabel(dy) + ' - ' + colLabel(dx),\n      dy, dx\n    });\n  }\n}\nreturn points.map((p, index) => ({ json: {\n  product_name: productName, city, area,\n  point_id: p.key, point_label: p.label, point_index: index + 1,\n  latitude: Number((centerLat + p.dy * latStep).toFixed(6)),\n  longitude: Number((centerLong + p.dx * longStep).toFixed(6)),\n  page_size: pageSize, max_pages: maxPages,\n  requested_at: new Date().toISOString()\n}}));"
+        "jsCode": "const body=$json.body??$json,productName=String(body.product_name??'').trim();\nif(!productName)throw new Error('product_name الزامی است');\nconst city=String(body.location?.city??body.city??'اصفهان').trim(),area=String(body.location?.area??body.area??'کل شهر').trim();\nconst safe=(v,d,min,max)=>{const n=Number(v??d);return Number.isFinite(n)?Math.min(max,Math.max(min,n)):d;};\nconst minLat=safe(body.location?.min_lat,32.50,24,40),maxLat=safe(body.location?.max_lat,32.78,24,40),minLong=safe(body.location?.min_long,51.43,44,64),maxLong=safe(body.location?.max_long,51.88,44,64);\nif(minLat>=maxLat||minLong>=maxLong)throw new Error('محدوده مختصات نامعتبر است');\nconst pageSize=Math.round(safe(body.page_size,36,1,100)),maxPages=Math.round(safe(body.max_pages,50,1,50));\nconst norm=v=>String(v??'').toLowerCase().normalize('NFKC').replace(/[يى]/g,'ی').replace(/ك/g,'ک').replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[^\\\\p{L}\\\\p{N}]+/gu,' ').trim();\nconst withoutSize=productName.replace(/\\\\d+(?:[.,]\\\\d+)?\\\\s*(?:کیلوگرمی|کیلوگرم|کیلو|گرمی|گرم|میلی\\\\s*لیتر|میلیلیتر|لیتری|لیتر|kg|g|ml|l)/ig,' ').replace(/\\\\s+/g,' ').trim();\nconst explicitBrand=String(body.brand??'').trim(),words=withoutSize.split(/\\\\s+/).filter(Boolean),inferredBrand=explicitBrand||(words.length>=4?words[words.length-1]:'');\nconst similarQuery=inferredBrand?withoutSize.replace(new RegExp(inferredBrand.replace(/[.*+?^|]/g,'\\\\\\\\$&'),'ig'),' ').replace(/\\\\s+/g,' ').trim():withoutSize;\nconst defs=[{type:'exact',label:'محصول دقیق',query:productName},{type:'same_brand_other_sizes',label:'برند یکسان؛ وزن‌های دیگر',query:withoutSize},{type:'similar_brands',label:'دسته محصول؛ برندهای دیگر',query:similarQuery||withoutSize}].filter((x,i,a)=>x.query&&a.findIndex(y=>norm(y.query)===norm(x.query))===i);\nconst points=[],rows=10,cols=10;\nfor(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const lat=maxLat-(maxLat-minLat)*(r/(rows-1)),lon=minLong+(maxLong-minLong)*(c/(cols-1));points.push({point_id:'R'+(r+1)+'C'+(c+1),point_label:(r===0?'شمال':r===rows-1?'جنوب':'ردیف '+(r+1))+' - '+(c===0?'غرب':c===cols-1?'شرق':'ستون '+(c+1)),point_row:r+1,point_col:c+1,latitude:Number(lat.toFixed(6)),longitude:Number(lon.toFixed(6))});}\nconst out=[],requestedAt=new Date().toISOString();\nfor(const p of points)for(const q of defs)out.push({json:{product_name:productName,requested_brand:inferredBrand||null,city,area,...p,point_index:(p.point_row-1)*cols+p.point_col,search_type:q.type,search_type_label:q.label,search_query:q.query,page_size:pageSize,max_pages:maxPages,coverage_mode:'approximate_city_envelope_10x10',requested_at:requestedAt}});\nreturn out;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -28,7 +28,7 @@
         0
       ],
       "id": "4b1e87d0-89b6-4b37-a6b5-3a9cc7e8c001",
-      "name": "Generate 25 Isfahan Search Points"
+      "name": "Generate 100 Isfahan Search Points"
     },
     {
       "parameters": {
@@ -38,7 +38,7 @@
           "parameters": [
             {
               "name": "query",
-              "value": "={{ $json.product_name }}"
+              "value": "={{ $json.search_query }}"
             },
             {
               "name": "lat",
@@ -131,7 +131,7 @@
               ]
             },
             "paginationCompleteWhen": "other",
-            "completeExpression": "={{ !$response.body?.data?.vendor_product_variations?.items?.length || $pageCount >= (Number($json.max_pages ?? 30) - 1) }}",
+            "completeExpression": "={{ !$response.body?.data?.vendor_product_variations?.items?.length || $pageCount >= (Number($json.max_pages ?? 50) - 1) }}",
             "limit": {
               "maxRequests": 50
             }
@@ -149,7 +149,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const inputItems = $input.all();\nconst norm = v => String(v ?? '').toLowerCase().normalize('NFKC')\n  .replace(/[يى]/g,'ی').replace(/ك/g,'ک')\n  .replace(/[\\u064B-\\u065F\\u0670]/g,'')\n  .replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d))\n  .replace(/[^\\p{L}\\p{N}]+/gu,' ').trim();\nconst tokens = v => norm(v).split(/\\s+/).filter(Boolean);\nconst stop = new Set(['و','با','برای','از','در','عدد','بسته','محصول','گرم','گرمی','کیلوگرم','کیلو']);\nconst numeric = v => Number.isFinite(Number(v)) ? Number(v) : null;\nconst storeMap = new Map(), offerMap = new Map(), pointStats = new Map();\nlet reportedVendors=0, reportedProducts=0, validPages=0;\nlet requestedProduct='', city='اصفهان';\nfor (const item of inputItems) {\n  const j = item.json ?? {};\n  const point = {\n    id:j.point_id ?? j.api_response?.point_id ?? 'unknown',\n    label:j.point_label ?? '',\n    latitude:j.latitude ?? null, longitude:j.longitude ?? null\n  };\n  const api = j.api_response ?? j.body ?? j;\n  const data = api?.data?.vendor_product_variations;\n  if (!data || !Array.isArray(data.items)) continue;\n  validPages++;\n  requestedProduct = requestedProduct || j.product_name || '';\n  city = j.city || city;\n  reportedVendors = Math.max(reportedVendors, Number(data.total_vendor || 0));\n  reportedProducts = Math.max(reportedProducts, Number(data.total_product || 0));\n  const ps = pointStats.get(point.id) || {point_id:point.id,point_label:point.label,latitude:point.latitude,longitude:point.longitude,pages:0,vendors_seen:0,products_seen:0};\n  ps.pages++; ps.vendors_seen += data.items.length;\n  for (const store of data.items) {\n    const storeId = String(store.id ?? store.vendor_id ?? '');\n    const storeCode = String(store.code ?? store.vendor_code ?? '');\n    const storeName = store.title ?? store.name ?? '';\n    const address = store.address ?? store.full_address ?? store.location?.address ?? null;\n    const storeKey = storeCode || storeId || norm(storeName)+'|'+norm(address);\n    const isOpen = store.is_open ?? null;\n    const canDeliver = store.does_deliver ?? store.deliver ?? null;\n    const category = isOpen === true ? (canDeliver === true ? 'باز و دارای ارسال' : canDeliver === false ? 'باز و فاقد ارسال' : 'باز؛ ارسال نامشخص')\n      : isOpen === false ? (canDeliver === true ? 'بسته و دارای اطلاعات ارسال' : canDeliver === false ? 'بسته و فاقد ارسال' : 'بسته؛ ارسال نامشخص') : 'وضعیت نامشخص';\n    if (!storeMap.has(storeKey)) storeMap.set(storeKey,{\n      store_code:storeCode || null,store_code:storeCode || null,store_id:storeId || null,store_name:storeName,area:store.area ?? store.district ?? store.neighborhood ?? null,\n      address,is_open:isOpen,store_status:isOpen === true?'باز':isOpen === false?'بسته':'نامشخص',\n      can_deliver:canDeliver,delivery_status:canDeliver === true?'دارد':canDeliver === false?'ندارد':'نامشخص',\n      store_category:category,seen_at_points:[]\n    });\n    const s = storeMap.get(storeKey);\n    if (!s.seen_at_points.some(x=>x.point_id===point.id)) s.seen_at_points.push(point);\n    for (const p of (Array.isArray(store.products)?store.products:[])) {\n      const title = p.title ?? p.name ?? '';\n      const price = numeric(p.price), discount = numeric(p.discount ?? 0);\n      if (!title || price === null || price <= 0 || discount === null) continue;\n      const wanted = tokens(requestedProduct).filter(t=>!stop.has(t));\n      const actual = tokens(title);\n      const matched = wanted.filter(t=>actual.some(x=>x===t || (t.length>=4 && x.includes(t)) || (x.length>=4 && t.includes(x)))).length;\n      const score = wanted.length ? matched/wanted.length : 0;\n      const exact = norm(title).includes(norm(requestedProduct));\n      const brand = p.brand?.title ?? p.brand_name ?? (typeof p.brand==='string'?p.brand:null);\n      // اگر کاربر وزن/حجم مشخص کرده، محصول با بسته‌بندی متفاوت نباید match قطعی شود.\n      const sizeOf = value => {\n        const raw = String(value ?? '').toLowerCase().replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[يى]/g,'ی').replace(/ك/g,'ک');\n        const m = raw.match(/(\\d+(?:[.,]\\d+)?)\\s*(کیلوگرمی|کیلوگرم|کیلو|گرمی|گرم|میلیلیتری|میلی\\s*لیتر|میلیلیتر|لیتری|لیتر|kg|g|ml|l)/i);\n        if (!m) return null;\n        const n = Number(m[1].replace(',','.')), u = m[2];\n        if (/^(کیلوگرمی|کیلوگرم|کیلو|kg)$/i.test(u)) return Math.round(n*1000);\n        if (/^(گرمی|گرم|g)$/i.test(u)) return Math.round(n);\n        if (/^(لیتری|لیتر|l)$/i.test(u)) return Math.round(n*1000);\n        return Math.round(n);\n      };\n      const wantedSize = sizeOf(requestedProduct), actualSize = sizeOf(title);\n      const sizeMismatch = wantedSize !== null && actualSize !== null && wantedSize !== actualSize;\n      // دسته اصلی کالا باید با عبارت کاربر سازگار باشد؛ مثلا «سس گوجه» جای «رب گوجه» ننشیند.\n      // اگر برند در عبارت درخواست آمده، فقط همان برند مجاز است.\n      const brandTokens = brand && norm(requestedProduct).includes(norm(brand)) ? tokens(brand) : [];\n      const categoryTokens = tokens(title);\n      const coreTokens = wanted.filter(t => !/^\\d+(?:\\.\\d+)?$/.test(t) && !brandTokens.includes(t));\n      const categoryMismatch = coreTokens.some(t => !categoryTokens.includes(t));\n      const matchStatus = sizeMismatch || categoryMismatch ? 'نامرتبط' : exact ? 'مرتبط' : score >= 0.95 ? 'مرتبط' : score >= 0.60 ? 'نیازمند بازبینی' : 'نامرتبط';\n      if (matchStatus==='نامرتبط') continue;\n      const productId = String(p.id ?? p.product_id ?? p.variation_id ?? '');\n      const packageSize = p.weight ?? p.volume ?? p.size ?? p.package_size ?? null;\n      const packageText = (title.match(/\\d+(?:[.,]\\d+)?\\s*(?:کیلوگرم|کیلو|گرم|میلی.?لیتر|لیتر)/i)||[])[0] || '';\n      const packCount = (title.match(/(?:بسته\\s*)?(\\d+)\\s*عددی/i)||[])[1] || '';\n      const identity = productId || norm(title)+'|'+String(packageSize ?? packageText)+'|'+packCount;\n      const key = storeKey+'|'+identity;\n      if (!offerMap.has(key)) offerMap.set(key,{\n        store_code:storeCode || null,store_id:storeId || null,store_name:storeName,area:store.area ?? store.district ?? store.neighborhood ?? null,address,\n        store_status:isOpen===true?'باز':isOpen===false?'بسته':'نامشخص',is_open:isOpen,\n        delivery_status:canDeliver===true?'دارد':canDeliver===false?'ندارد':'نامشخص',can_deliver:canDeliver,store_category:category,\n        product_id:productId || null,product_title:title,brand,package_size:(packageSize ?? packageText) || null,\n        pack_count:packCount ? Number(packCount):null,original_price:price,discount,final_price:price-discount,\n        stock:p.stock ?? p.quantity ?? null,stock_status:p.stock==null?'نامشخص':Number(p.stock)>0?'موجود':'ناموجود',\n        relevance:matchStatus,relevance_score:Number(score.toFixed(3)),seen_at_points:[]\n      });\n      const offer = offerMap.get(key);\n      if (!offer.seen_at_points.some(x=>x.point_id===point.id)) offer.seen_at_points.push(point);\n      // بهترین تطبیق/قیمت آخرین پاسخ نگه داشته می‌شود؛ برای یک SKU از چند نقطه، قیمت یکسان انتظار می‌رود.\n      if (score > offer.relevance_score) { offer.relevance_score=Number(score.toFixed(3)); offer.relevance=matchStatus; }\n    }\n  }\n  pointStats.set(point.id,ps);\n}\nif (!requestedProduct) throw new Error('نام محصول درخواستی به مرحله تطبیق نرسیده است؛ انتقال metadata از Search را بررسی کنید.');\nconst codeSort=(a,b)=>{\n  const aa=String(a.store_code??''),bb=String(b.store_code??'');\n  const an=Number(aa),bn=Number(bb);\n  if (Number.isFinite(an)&&Number.isFinite(bn)) return an-bn;\n  return aa.localeCompare(bb,'en',{numeric:true});\n};\nconst stores=[...storeMap.values()].sort(codeSort);\nconst offers=[...offerMap.values()].sort((a,b)=>codeSort(a,b)||String(a.product_title).localeCompare(String(b.product_title),'fa'));\nconst points=[...pointStats.values()].sort((a,b)=>String(a.point_id).localeCompare(String(b.point_id)));\nconst rows=offers.map(o=>({\n  'کد فروشگاه':o.store_code,'شناسه فروشگاه':o.store_id,'نام فروشگاه':o.store_name,'منطقه':o.area,'آدرس':o.address,\n  'وضعیت فروشگاه':o.store_status,'ارسال':o.delivery_status,'دسته وضعیت':o.store_category,\n  'کد محصول':o.product_id,'نام محصول':o.product_title,'برند':o.brand,'وزن/حجم':o.package_size,'تعداد بسته':o.pack_count,\n  'قیمت اصلی':o.original_price,'تخفیف':o.discount,'قیمت نهایی':o.final_price,\n  'موجودی':o.stock,'وضعیت موجودی':o.stock_status,'تطبیق':o.relevance,'امتیاز تطبیق':o.relevance_score,\n  'نقاط مشاهده':o.seen_at_points.map(p=>p.label+' ('+p.id+')').join('، ')\n}));\nconst summary={\n  success:true,requested_product:requestedProduct,city,\n  points_requested:25,points_with_results:points.length,pages_received:validPages,\n  reported_total_vendors_max_per_point:reportedVendors,reported_total_products_max_per_point:reportedProducts,\n  unique_stores:stores.length,unique_offers:offers.length,\n  needs_review:offers.filter(x=>x.relevance==='نیازمند بازبینی').length,\n  open_with_delivery:offers.filter(x=>x.store_category==='باز و دارای ارسال').length,\n  open_without_delivery:offers.filter(x=>x.store_category==='باز و فاقد ارسال').length,\n  closed:offers.filter(x=>x.store_status==='بسته').length,\n  unknown_store_status:offers.filter(x=>x.store_status==='نامشخص').length\n};\nreturn rows.length ? rows.map(row => ({ json: row })) : [{ json: { 'نتیجه': 'محصول مرتبطی پیدا نشد', 'محصول درخواستی': requestedProduct, 'شهر': city, 'تعداد نقاط بررسی‌شده': points.length, 'تعداد صفحات دریافت‌شده': validPages } }];"
+        "jsCode": "const items=$input.all();\nconst norm=v=>String(v??'').toLowerCase().normalize('NFKC').replace(/[يى]/g,'ی').replace(/ك/g,'ک').replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[\\\\u064B-\\\\u065F\\\\u0670]/g,'').replace(/[^\\\\p{L}\\\\p{N}]+/gu,' ').trim();\nconst tokens=v=>norm(v).split(/\\\\s+/).filter(Boolean),stop=new Set(['و','با','برای','از','در','عدد','بسته','محصول','گرم','گرمی','کیلوگرم','کیلو','میلی','لیتر','لیتری']);\nconst num=v=>Number.isFinite(Number(v))?Number(v):null;\nconst sizeOf=v=>{const s=String(v??'').toLowerCase().replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[يى]/g,'ی').replace(/ك/g,'ک'),m=s.match(/(\\\\d+(?:[.,]\\\\d+)?)\\\\s*(کیلوگرمی|کیلوگرم|کیلو|گرمی|گرم|میلی\\\\s*لیتری|میلی\\\\s*لیتر|میلیلیتر|لیتری|لیتر|kg|g|ml|l)/i);if(!m)return null;const n=Number(m[1].replace(',','.')),u=m[2];if(/^(کیلوگرمی|کیلوگرم|کیلو|kg)$/i.test(u))return Math.round(n*1000);if(/^(گرمی|گرم|g)$/i.test(u))return Math.round(n);if(/^(لیتری|لیتر|l)$/i.test(u))return Math.round(n*1000);return Math.round(n);};\nconst imageUrl=p=>{for(const x of [p.image_url,p.imageUrl,p.image,p.thumbnail,p.thumbnail_url,p.photo,p.picture,p.featured,p.main_image,p.mainImage]){if(typeof x==='string'&&/^https?:\\\\/\\\\//i.test(x))return x;if(Array.isArray(x)){const y=x.find(z=>typeof z==='string'&&/^https?:\\\\/\\\\//i.test(z));if(y)return y;}if(x&&typeof x==='object')for(const k of ['url','src','original','large','medium','thumbnail'])if(typeof x[k]==='string'&&/^https?:\\\\/\\\\//i.test(x[k]))return x[k];}return null;};\nconst stores=new Map(),offers=new Map(),points=new Map();let requested='',brandWanted='',city='اصفهان',area='کل شهر';\nfor(const item of items){const j=item.json??{};requested=requested||j.product_name||'';brandWanted=brandWanted||j.requested_brand||'';city=j.city||city;area=j.area||area;const pid=j.point_id||'unknown',api=j.api_response??{},d=api?.data?.vendor_product_variations;\n const ps=points.get(pid)||{point_id:pid,point_label:j.point_label||'',latitude:j.latitude??null,longitude:j.longitude??null,point_index:j.point_index??null,pages_received:0,search_types:[],vendors_seen:0,products_seen:0,api_errors:[],reported_total_vendors:0};ps.pages_received++;if(!ps.search_types.includes(j.search_type))ps.search_types.push(j.search_type);\n if(!d||!Array.isArray(d.items)){ps.api_errors.push('ساختار نامعتبر '+(j.search_type||''));points.set(pid,ps);continue;}ps.vendors_seen+=d.items.length;ps.reported_total_vendors=Math.max(ps.reported_total_vendors,Number(d.total_vendor||0));const localStores=new Set();\n for(const s of d.items){const sid=String(s.id??s.vendor_id??''),code=String(s.code??s.vendor_code??''),name=s.title??s.name??'',address=s.address??s.full_address??s.location?.address??null,key=code||sid||norm(name)+'|'+norm(address);localStores.add(key);const open=s.is_open??null,deliver=s.does_deliver??s.deliver??null;\n  const sr=stores.get(key)||{store_code:code||null,store_id:sid||null,store_name:name,area:s.area??s.district??null,address,latitude:s.latitude??null,longitude:s.longitude??null,is_open:open,store_status:open===true?'باز':open===false?'بسته':'نامشخص',can_deliver:deliver,delivery_status:deliver===true?'دارد':deliver===false?'ندارد':'نامشخص',delivery_fee:s.deliveryFee??s.delivery_fee??null,min_order:s.minOrder??null,seen_at_points:[]};\n  if(!sr.seen_at_points.some(x=>x.point_id===pid))sr.seen_at_points.push({point_id:pid,point_label:j.point_label,latitude:j.latitude,longitude:j.longitude});sr.is_open=open;sr.can_deliver=deliver;sr.store_status=open===true?'باز':open===false?'بسته':'نامشخص';sr.delivery_status=deliver===true?'دارد':deliver===false?'ندارد':'نامشخص';stores.set(key,sr);\n  const products=Array.isArray(s.products)?s.products:[];ps.products_seen+=products.length;\n  for(const p of products){const title=p.title??p.name??'',price=num(p.price),discount=num(p.discount??0);if(!title||price===null||price<=0||discount===null)continue;const pbrand=typeof p.brand==='string'?p.brand:(p.brand?.title??p.brand_name??null),actual=tokens(title),wanted=tokens(requested).filter(t=>!stop.has(t)&&!/^\\\\d+(?:[.,]\\\\d+)?$/.test(t)),bt=tokens(brandWanted),core=wanted.filter(t=>!bt.includes(t)),matched=core.filter(t=>actual.some(x=>x===t||(t.length>=4&&x.includes(t))||(x.length>=4&&t.includes(x)))).length,score=core.length?matched/core.length:0,wsize=sizeOf(requested),asize=sizeOf(title),sameSize=wsize===null||asize===wsize,diffSize=wsize!==null&&asize!==null&&asize!==wsize,sameBrand=!brandWanted||(pbrand&&norm(pbrand)===norm(brandWanted))||norm(title).includes(norm(brandWanted));let cls='near';if(score>=.8&&sameBrand&&sameSize)cls='exact';else if(score>=.75&&sameBrand&&diffSize)cls='other_size';else if(score>=.75&&brandWanted&&!sameBrand)cls='similar_brand';else if(score<.45)continue;\n   const productId=String(p.id??p.product_id??p.variation_id??''),pack=p.weight??p.volume??p.size??p.package_size??asize??null,final=price-discount,identity=productId||norm(title)+'|'+String(pack??''),offerKey=[key,identity,price,discount].join('|');\n   const o=offers.get(offerKey)||{store_code:code||null,store_id:sid||null,store_name:name,store_area:s.area??s.district??null,store_address:address,store_latitude:s.latitude??null,store_longitude:s.longitude??null,store_status:open===true?'باز':open===false?'بسته':'نامشخص',delivery_status:deliver===true?'دارد':deliver===false?'ندارد':'نامشخص',product_id:productId||null,product_title:title,brand:pbrand,package_size:pack,original_price:price,discount,final_price:final,stock:p.stock??null,stock_status:p.stock==null?'نامشخص':Number(p.stock)>0?'موجود':'ناموجود',image_url:imageUrl(p),classification:cls,relevance_score:Number(score.toFixed(3)),search_types:[],seen_at_points:[]};\n   if(!o.search_types.includes(j.search_type))o.search_types.push(j.search_type);if(!o.seen_at_points.some(x=>x.point_id===pid))o.seen_at_points.push({point_id:pid,point_label:j.point_label,latitude:j.latitude,longitude:j.longitude});if(score>o.relevance_score)o.relevance_score=Number(score.toFixed(3));const rank={exact:4,other_size:3,similar_brand:2,near:1};if(rank[cls]>rank[o.classification])o.classification=cls;if(!o.image_url)o.image_url=imageUrl(p);offers.set(offerKey,o);\n  }\n }\n ps.unique_stores_seen=localStores.size;points.set(pid,ps);\n}\nif(!requested)throw new Error('نام محصول درخواستی به مرحله تجمیع نرسیده است');\nconst all=[...offers.values()].sort((a,b)=>String(a.product_title).localeCompare(String(b.product_title),'fa')||a.final_price-b.final_price),exact=all.filter(x=>x.classification==='exact'),similar=all.filter(x=>x.classification==='similar_brand'),other=all.filter(x=>x.classification==='other_size'),nearest=all.slice().sort((a,b)=>b.relevance_score-a.relevance_score).slice(0,6),storeList=[...stores.values()].sort((a,b)=>String(a.store_name).localeCompare(String(b.store_name),'fa')),pointList=[...points.values()].sort((a,b)=>(a.point_index??999)-(b.point_index??999));\nconst offerRows=a=>a.map(o=>({'تصویر':'','لینک تصویر':o.image_url||'','کد فروشگاه':o.store_code,'شناسه فروشگاه':o.store_id,'نام فروشگاه':o.store_name,'منطقه فروشگاه':o.store_area,'آدرس فروشگاه':o.store_address,'مختصات فروشگاه':o.store_latitude!=null&&o.store_longitude!=null?o.store_latitude+', '+o.store_longitude:'','وضعیت فروشگاه':o.store_status,'وضعیت ارسال':o.delivery_status,'کد محصول':o.product_id,'نام محصول':o.product_title,'برند':o.brand,'وزن/حجم':o.package_size,'قیمت اصلی':o.original_price,'تخفیف':o.discount,'قیمت نهایی':o.final_price,'موجودی':o.stock,'وضعیت موجودی':o.stock_status,'نوع تطبیق':o.classification,'امتیاز شباهت':o.relevance_score,'نوع جست‌وجو':o.search_types.join('، '),'نقاط مشاهده':o.seen_at_points.map(x=>x.point_label+' ['+x.point_id+']').join(' | ')}));\nconst storeRows=storeList.map(s=>({'کد فروشگاه':s.store_code,'شناسه فروشگاه':s.store_id,'نام فروشگاه':s.store_name,'منطقه':s.area,'آدرس':s.address,'عرض جغرافیایی':s.latitude,'طول جغرافیایی':s.longitude,'وضعیت':s.store_status,'ارسال':s.delivery_status,'هزینه ارسال':s.delivery_fee,'حداقل سفارش':s.min_order,'نقاط مشاهده':s.seen_at_points.map(x=>x.point_id).join('، ')}));\nconst pointRows=pointList.map(p=>({'شناسه نقطه':p.point_id,'برچسب':p.point_label,'عرض جغرافیایی':p.latitude,'طول جغرافیایی':p.longitude,'صفحات دریافت‌شده':p.pages_received,'نوع جست‌وجو':p.search_types.join('، '),'فروشگاه یکتای دیده‌شده':p.unique_stores_seen??0,'کل فروشگاه‌های گزارش‌شده API':p.reported_total_vendors,'تعداد رکورد محصول':p.products_seen,'خطاها':p.api_errors.join(' | ')}));\nconst summary={requested_product:requested,requested_brand:brandWanted||null,city,area,target_points:100,points_with_responses:pointList.filter(p=>p.pages_received>0).length,pages_received:pointList.reduce((n,p)=>n+p.pages_received,0),unique_stores:storeList.length,all_offer_rows:all.length,exact_product_rows:exact.length,similar_brand_rows:similar.length,other_size_rows:other.length,nearest_six_rows:nearest.length,coverage_mode:'approximate_city_envelope_10x10',image_urls_found:all.filter(x=>x.image_url).length,warning:'محدوده ۱۰۰ نقطه‌ای فعلاً مستطیل عملیاتی است و مرز رسمی شهرداری نیست؛ تصویر فقط در صورت وجود URL تصویر در پاسخ API درج می‌شود.'};\nreturn[{json:{summary,exact_rows:offerRows(exact),similar_brand_rows:offerRows(similar),other_size_rows:offerRows(other),nearest_rows:offerRows(nearest),store_rows:storeRows,point_rows:pointRows}}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -158,25 +158,7 @@
         0
       ],
       "id": "4b1e87d0-89b6-4b37-a6b5-3a9cc7e8c004",
-      "name": "Aggregate, Match and Sort by Store Code"
-    },
-    {
-      "parameters": {
-        "operation": "toFile",
-        "fileFormat": "xlsx",
-        "options": {
-          "fileName": "snappmarket-isfahan-prices.xlsx",
-          "sheetName": "قیمت‌ها"
-        }
-      },
-      "type": "n8n-nodes-base.spreadsheetFile",
-      "typeVersion": 2,
-      "position": [
-        480,
-        0
-      ],
-      "id": "4b1e87d0-89b6-4b37-a6b5-3a9cc7e8c005",
-      "name": "Create Excel File"
+      "name": "Aggregate Products, Brands, Sizes and Coverage"
     },
     {
       "parameters": {
@@ -205,7 +187,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const responses = $input.all();\nconst points = $('Generate 25 Isfahan Search Points').all();\n\nreturn responses.map((item, index) => {\n  // n8n may emit one item per HTTP page or one final item per search point.\n  // Prefer item linking when present; fall back to positional pairing only for 1:1 output.\n  const link = Array.isArray(item.pairedItem) ? item.pairedItem[0] : item.pairedItem;\n  let pointIndex = Number.isInteger(link?.item) ? link.item : null;\n  if (pointIndex === null) {\n    if (responses.length !== points.length) {\n      throw new Error('تعداد پاسخ‌های صفحه‌بندی‌شده با نقاط جست‌وجو برابر نیست و ارتباط آیتم‌ها هم موجود نیست؛ برای جلوگیری از انتساب اشتباه متوقف شد.');\n    }\n    pointIndex = index;\n  }\n\n  const point = points[pointIndex]?.json;\n  if (!point) throw new Error(`اطلاعات نقطه شماره ${pointIndex + 1} پیدا نشد.`);\n  const raw = item.json ?? {};\n  const api = raw.api_response ?? raw.body ?? raw;\n  if (!api?.data?.vendor_product_variations || !Array.isArray(api.data.vendor_product_variations.items)) {\n    throw new Error(`ساختار پاسخ API برای نقطه ${point.point_id} معتبر نیست.`);\n  }\n  return {\n    json: {\n      ...point,\n      api_response: api,\n      api_page: api.pagination?.page ?? null,\n      api_status: api.status ?? null\n    },\n    pairedItem: { item: index }\n  };\n});"
+        "jsCode": "const responses=$input.all(),searches=$('Generate 100 Isfahan Search Points').all();\nreturn responses.map((item,index)=>{const link=Array.isArray(item.pairedItem)?item.pairedItem[0]:item.pairedItem;let si=Number.isInteger(link?.item)?link.item:null;if(si===null){if(responses.length!==searches.length)throw new Error('ارتباط پاسخ با نقطه/نوع جست‌وجو مشخص نیست');si=index;}const s=searches[si]?.json;if(!s)throw new Error('metadata نقطه پیدا نشد');const raw=item.json??{},api=raw.api_response??raw.body??raw;if(!api?.data?.vendor_product_variations||!Array.isArray(api.data.vendor_product_variations.items))throw new Error('ساختار پاسخ API نامعتبر: '+s.point_id);return{json:{...s,api_response:api,api_page:api.pagination?.page??null,api_status:api.status??null},pairedItem:{item:index}};});"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -215,6 +197,21 @@
       ],
       "id": "4b1e87d0-89b6-4b37-a6b5-3a9cc7e8c007",
       "name": "Restore Search Point Metadata"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const ExcelJS=require('exceljs'),data=$input.first().json,workbook=new ExcelJS.Workbook(),cache=new Map();\nworkbook.creator='SnappMarket Isfahan Price Collector';workbook.created=new Date();workbook.modified=new Date();\nconst addSheet=async(name,rows)=>{const list=Array.isArray(rows)?rows:[],ws=workbook.addWorksheet(name,{views:[{state:'frozen',ySplit:1,rightToLeft:true}]}),headers=list.length?Object.keys(list[0]):['نتیجه'];ws.columns=headers.map(h=>({header:h,key:h,width:Math.min(42,Math.max(14,String(h).length+4))}));ws.getRow(1).height=28;ws.getRow(1).font={bold:true,color:{argb:'FFFFFFFF'}};ws.getRow(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF244062'}};ws.autoFilter={from:{row:1,column:1},to:{row:Math.max(1,list.length+1),column:headers.length}};for(const obj of list){const row=ws.addRow(obj);if(Object.prototype.hasOwnProperty.call(obj,'تصویر'))row.height=58;row.eachCell({includeEmpty:true},c=>{c.alignment={vertical:'middle',wrapText:true};});}\n const ic=headers.indexOf('تصویر')+1,uc=headers.indexOf('لینک تصویر')+1;if(ic>0&&uc>0&&typeof fetch==='function')for(let i=0;i<list.length;i++){const url=list[i]['لینک تصویر'];if(!url||typeof url!=='string'||!/^https?:\\\\/\\\\//i.test(url))continue;try{let item=cache.get(url);if(!item){const res=await fetch(url);if(!res.ok)continue;const type=String(res.headers.get('content-type')||'').toLowerCase(),ext=type.includes('png')?'png':type.includes('gif')?'gif':(type.includes('jpeg')||type.includes('jpg'))?'jpeg':null;if(!ext)continue;const bytes=Buffer.from(await res.arrayBuffer());if(!bytes.length||bytes.length>3145728)continue;item={id:workbook.addImage({buffer:bytes,extension:ext})};cache.set(url,item);}ws.addImage(item.id,{tl:{col:ic-1,row:i+1},ext:{width:52,height:52}});ws.getColumn(ic).width=12;const cell=ws.getRow(i+2).getCell(uc);cell.value={text:'مشاهده تصویر',hyperlink:url};cell.font={color:{argb:'FF0563C1'},underline:true};}catch(e){}}\n};\nawait addSheet('خلاصه',Object.entries(data.summary||{}).map(([k,v])=>({'شاخص':k,'مقدار':String(v??'')})));\nawait addSheet('محصولات دقیق',data.exact_rows);await addSheet('برندهای مشابه',data.similar_brand_rows);await addSheet('وزن‌های دیگر',data.other_size_rows);await addSheet('نزدیک‌ترین ۶',data.nearest_rows);await addSheet('فروشگاه‌ها',data.store_rows);await addSheet('پوشش نقاط',data.point_rows);\nconst buf=Buffer.from(await workbook.xlsx.writeBuffer()),binary=await this.helpers.prepareBinaryData(buf,'snappmarket-isfahan-prices.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');return[{json:{summary:data.summary},binary:{data:binary}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "4b1e87d0-89b6-4b37-a6b5-3a9cc7e8c005",
+      "name": "Build Multi-sheet XLSX"
     }
   ],
   "pinData": {},
@@ -223,7 +220,18 @@
       "main": [
         [
           {
-            "node": "Generate 9 Search Points",
+            "node": "Generate 100 Isfahan Search Points",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate 100 Isfahan Search Points": {
+      "main": [
+        [
+          {
+            "node": "Search Current Point (All Pages)",
             "type": "main",
             "index": 0
           }
@@ -241,44 +249,33 @@
         ]
       ]
     },
-    "Aggregate, Match and Sort by Store Code": {
-      "main": [
-        [
-          {
-            "node": "Create Excel File",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Create Excel File": {
-      "main": [
-        [
-          {
-            "node": "Return Excel",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Restore Search Point Metadata": {
       "main": [
         [
           {
-            "node": "Aggregate, Match and Sort by Store Code",
+            "node": "Aggregate Products, Brands, Sizes and Coverage",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Generate 25 Isfahan Search Points": {
+    "Aggregate Products, Brands, Sizes and Coverage": {
       "main": [
         [
           {
-            "node": "Search Current Point (All Pages)",
+            "node": "Build Multi-sheet XLSX",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Multi-sheet XLSX": {
+      "main": [
+        [
+          {
+            "node": "Return Excel",
             "type": "main",
             "index": 0
           }
