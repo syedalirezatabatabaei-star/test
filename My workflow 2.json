@@ -1,74 +1,48 @@
 {
-  "name": "SnappMarket Isfahan Price Collection - Phase 1",
+  "name": "SnappMarket Isfahan Price Collection - Multi Point + Excel",
   "nodes": [
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "c67c66ea-3f24-4a07-be30-d5dfe6c14066",
-              "name": "product_name",
-              "value": "={{ String($json.body?.product_name || $json.product_name || '').trim() }}",
-              "type": "string"
-            },
-            {
-              "id": "032a1d96-0428-46f7-a03b-3040fb451d12",
-              "name": "city",
-              "value": "={{ String($json.body?.location?.city || $json.city || 'اصفهان').trim() }}",
-              "type": "string"
-            },
-            {
-              "id": "3cd55168-fa62-444f-b2ec-6f6d570accf6",
-              "name": "area",
-              "value": "={{ String($json.body?.location?.area || $json.area || 'کل شهر').trim() }}",
-              "type": "string"
-            },
-            {
-              "id": "f5f93b70-4a7b-4d1d-8f8a-000000000001",
-              "name": "latitude",
-              "value": "32.6546",
-              "type": "string"
-            },
-            {
-              "id": "f5f93b70-4a7b-4d1d-8f8a-000000000002",
-              "name": "longitude",
-              "value": "51.6680",
-              "type": "string"
-            },
-            {
-              "id": "f5f93b70-4a7b-4d1d-8f8a-000000000003",
-              "name": "page_size",
-              "value": "36",
-              "type": "number"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.5,
-      "position": [
-        -240,
-        -48
-      ],
-      "id": "9afe3a46-ef0d-4fef-a7d8-9ca4d04cbadb",
-      "name": "Normalize Input"
-    },
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "snap-market",
+        "responseMode": "responseNode",
         "options": {}
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.2,
       "position": [
-        -416,
-        -48
+        -760,
+        0
       ],
       "id": "04585a35-3126-4965-9838-f1824f3c6762",
-      "name": "Webhook",
-      "webhookId": "94e378c7-72ea-4ce3-9497-713fa86eaf91"
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nconst productName = String(body.product_name ?? '').trim();\nif (!productName) throw new Error('product_name الزامی است');\nconst city = String(body.location?.city ?? body.city ?? 'اصفهان').trim();\nconst area = String(body.location?.area ?? body.area ?? 'کل شهر').trim();\n\n// شبکه ۳×۳ برای پوشش چندبخشی شهر؛ مختصات قابل تغییر از ورودی webhook هستند.\nconst centerLat = Number(body.location?.latitude ?? body.latitude ?? 32.6546);\nconst centerLong = Number(body.location?.longitude ?? body.longitude ?? 51.6680);\nconst latStep = Number(body.location?.lat_step ?? 0.035);\nconst longStep = Number(body.location?.long_step ?? 0.040);\nconst points = [\n  { key:'NW', label:'شمال غرب', dy:1, dx:-1 },\n  { key:'N',  label:'شمال', dy:1, dx:0 },\n  { key:'NE', label:'شمال شرق', dy:1, dx:1 },\n  { key:'W',  label:'غرب', dy:0, dx:-1 },\n  { key:'C',  label:'مرکز', dy:0, dx:0 },\n  { key:'E',  label:'شرق', dy:0, dx:1 },\n  { key:'SW', label:'جنوب غرب', dy:-1, dx:-1 },\n  { key:'S',  label:'جنوب', dy:-1, dx:0 },\n  { key:'SE', label:'جنوب شرق', dy:-1, dx:1 },\n];\nreturn points.map((p, index) => ({ json: {\n  product_name:productName, city, area,\n  point_id:p.key, point_label:p.label, point_index:index+1,\n  latitude:Number((centerLat + p.dy*latStep).toFixed(6)),\n  longitude:Number((centerLong + p.dx*longStep).toFixed(6)),\n  page_size:Math.min(100,Math.max(1,Number(body.page_size ?? 36))),\n  max_pages:Math.min(50,Math.max(1,Number(body.max_pages ?? 30))),\n  requested_at:new Date().toISOString()\n}}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -540,
+        0
+      ],
+      "id": "4b1e87d0-89b6-4b37-a6b5-3a9cc7e8c001",
+      "name": "Generate 9 Search Points"
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -300,
+        0
+      ],
+      "id": "4b1e87d0-89b6-4b37-a6b5-3a9cc7e8c002",
+      "name": "Loop Over Search Points"
     },
     {
       "parameters": {
@@ -78,15 +52,15 @@
           "parameters": [
             {
               "name": "query",
-              "value": "={{ $('Normalize Input').first().json.product_name }}"
+              "value": "={{ $json.product_name }}"
             },
             {
               "name": "lat",
-              "value": "={{ $('Normalize Input').first().json.latitude }}"
+              "value": "={{ $json.latitude }}"
             },
             {
               "name": "long",
-              "value": "={{ $('Normalize Input').first().json.longitude }}"
+              "value": "={{ $json.longitude }}"
             },
             {
               "name": "superType",
@@ -102,7 +76,7 @@
             },
             {
               "name": "size",
-              "value": "={{ $('Normalize Input').first().json.page_size }}"
+              "value": "={{ $json.page_size }}"
             },
             {
               "name": "client",
@@ -153,6 +127,12 @@
         },
         "options": {
           "timeout": 60000,
+          "response": {
+            "response": {
+              "responseFormat": "json",
+              "outputPropertyName": "api_response"
+            }
+          },
           "pagination": {
             "paginationMode": "updateAParameterInEachRequest",
             "pagination": {
@@ -165,9 +145,9 @@
               ]
             },
             "paginationCompleteWhen": "other",
-            "completeExpression": "={{ !$response.body?.data?.vendor_product_variations?.items?.length || $pageCount >= 99 }}",
+            "completeExpression": "={{ !$response.body?.data?.vendor_product_variations?.items?.length || $pageCount >= ($json.max_pages - 1) }}",
             "limit": {
-              "maxRequests": 100
+              "maxRequests": 50
             }
           }
         }
@@ -175,24 +155,67 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [
-        -16,
-        -48
+        -40,
+        180
       ],
-      "id": "26957b4d-c1d7-4c3b-9408-3542ac91c693",
-      "name": "SnappMarket Search"
+      "id": "4b1e87d0-89b6-4b37-a6b5-3a9cc7e8c003",
+      "name": "Search Current Point (All Pages)"
     },
     {
       "parameters": {
-        "jsCode": "const pages = $input.all().map(x => x.json);\nconst input = $('Normalize Input').first().json;\nconst requested = String(input.product_name || '').trim();\n\nconst normalize = v => String(v ?? '').toLowerCase().normalize('NFKC')\n  .replace(/[يى]/g,'ی').replace(/ك/g,'ک')\n  .replace(/[\\\\u064B-\\\\u065F\\\\u0670]/g,'')\n  .replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d))\n  .replace(/[^\\\\p{L}\\\\p{N}]+/gu,' ').trim();\nconst tokens = v => normalize(v).split(/\\\\s+/).filter(Boolean);\nconst ignored = new Set(['و','با','برای','از','در','عدد','بسته','محصول','گرم','کیلوگرم']);\nconst wanted = tokens(requested).filter(t=>!ignored.has(t));\nconst storeMap = new Map(), offerMap = new Map();\nlet reportedVendors=0, reportedProducts=0, validPages=0;\n\nfor (const response of pages) {\n  const root = response.body ?? response;\n  const data = root?.data?.vendor_product_variations;\n  if (!data || !Array.isArray(data.items)) continue;\n  validPages++;\n  reportedVendors = Math.max(reportedVendors, Number(data.total_vendor || 0));\n  reportedProducts = Math.max(reportedProducts, Number(data.total_product || 0));\n\n  for (const store of data.items) {\n    const storeId = String(store.id ?? store.vendor_id ?? '');\n    const storeName = store.title ?? store.name ?? null;\n    const storeKey = storeId || normalize(storeName)+'|'+normalize(store.address);\n    const address = store.address ?? store.full_address ?? store.location?.address ?? null;\n    const isOpen = store.is_open ?? null;\n    const canDeliver = store.does_deliver ?? store.deliver ?? null;\n    const category = isOpen === true\n      ? (canDeliver === true ? 'باز و دارای ارسال' : 'باز و فاقد ارسال')\n      : (canDeliver === true ? 'بسته و دارای اطلاعات ارسال' : 'بسته و فاقد ارسال');\n\n    if (!storeMap.has(storeKey)) {\n      storeMap.set(storeKey, {\n        store_name:storeName, store_id:storeId || null,\n        area:store.area ?? store.district ?? store.neighborhood ?? null,\n        address, is_open:isOpen,\n        store_status:isOpen === true ? 'باز' : isOpen === false ? 'بسته' : 'نامشخص',\n        can_deliver:canDeliver,\n        delivery_status:canDeliver === true ? 'دارد' : canDeliver === false ? 'ندارد' : 'نامشخص',\n        store_category:category\n      });\n    }\n\n    for (const p of (Array.isArray(store.products) ? store.products : [])) {\n      const title = p.title ?? p.name ?? '';\n      const price = Number(p.price);\n      const discount = Number(p.discount ?? 0);\n      if (!title || !Number.isFinite(price) || price <= 0 || !Number.isFinite(discount)) continue;\n\n      const productTokens = tokens(title);\n      const matched = wanted.filter(t => productTokens.some(x => x === t || x.includes(t) || t.includes(x))).length;\n      const score = wanted.length ? matched / wanted.length : 0;\n      const exact = normalize(title).includes(normalize(requested));\n      const matchStatus = exact || score >= 0.70 ? 'مرتبط' : score >= 0.35 ? 'نیازمند بازبینی' : 'نامرتبط';\n      if (matchStatus === 'نامرتبط') continue;\n\n      const productId = String(p.id ?? p.product_id ?? p.variation_id ?? '');\n      const packageSize = p.weight ?? p.volume ?? p.size ?? p.package_size ?? null;\n      const dedupeKey = storeKey+'|'+(productId || normalize(title)+'|'+String(packageSize ?? ''));\n      const finalPrice = price - discount;\n      offerMap.set(dedupeKey, {\n        store_name:storeName, store_id:storeId || null,\n        area:store.area ?? store.district ?? store.neighborhood ?? null,\n        address, store_status:isOpen === true ? 'باز' : isOpen === false ? 'بسته' : 'نامشخص',\n        is_open:isOpen, delivery_status:canDeliver === true ? 'دارد' : canDeliver === false ? 'ندارد' : 'نامشخص',\n        can_deliver:canDeliver, store_category:category,\n        product_id:productId || null, product_title:title,\n        brand:p.brand?.title ?? p.brand_name ?? (typeof p.brand === 'string' ? p.brand : null),\n        package_size:packageSize,\n        original_price:price, discount, final_price:finalPrice,\n        stock:p.stock ?? p.quantity ?? null,\n        stock_status:p.stock == null ? 'نامشخص' : Number(p.stock) > 0 ? 'موجود' : 'ناموجود',\n        relevance:matchStatus, relevance_score:Number(score.toFixed(3)),\n        received_at:new Date().toISOString()\n      });\n    }\n  }\n}\n\nconst offers=[...offerMap.values()];\nconst stores=[...storeMap.values()];\nreturn [{json:{\n success:true, requested_product:requested, city:input.city || 'اصفهان',\n search_point:{latitude:Number(input.latitude),longitude:Number(input.longitude)},\n pagination:{pages_received:validPages,reported_total_vendors:reportedVendors,reported_total_products:reportedProducts},\n summary:{unique_stores:stores.length,total_relevant_offers:offers.length,\n   open_with_delivery:offers.filter(x=>x.store_category==='باز و دارای ارسال').length,\n   open_without_delivery:offers.filter(x=>x.store_category==='باز و فاقد ارسال').length,\n   closed_with_delivery_info:offers.filter(x=>x.store_category==='بسته و دارای اطلاعات ارسال').length,\n   closed_without_delivery:offers.filter(x=>x.store_category==='بسته و فاقد ارسال').length,\n   needs_review:offers.filter(x=>x.relevance==='نیازمند بازبینی').length},\n stores, offers,\n note:'فروشگاه‌های بسته، فاقد ارسال و محصولات ناموجود حذف نشده‌اند. محصولات با اندازه بسته‌بندی متفاوت جدا نگه داشته می‌شوند. این نسخه فقط نقطه مرکزی اصفهان را جست‌وجو می‌کند؛ پوشش چندنقطه‌ای در مرحله بعد اضافه می‌شود.'\n}}];"
+        "jsCode": "const inputItems = $input.all();\nconst norm = v => String(v ?? '').toLowerCase().normalize('NFKC')\n  .replace(/[يى]/g,'ی').replace(/ك/g,'ک')\n  .replace(/[\\u064B-\\u065F\\u0670]/g,'')\n  .replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d))\n  .replace(/[^\\p{L}\\p{N}]+/gu,' ').trim();\nconst tokens = v => norm(v).split(/\\s+/).filter(Boolean);\nconst stop = new Set(['و','با','برای','از','در','عدد','بسته','محصول','گرم','گرمی','کیلوگرم','کیلو']);\nconst numeric = v => Number.isFinite(Number(v)) ? Number(v) : null;\nconst storeMap = new Map(), offerMap = new Map(), pointStats = new Map();\nlet reportedVendors=0, reportedProducts=0, validPages=0;\nlet requestedProduct='', city='اصفهان';\nfor (const item of inputItems) {\n  const j = item.json ?? {};\n  const point = {\n    id:j.point_id ?? j.api_response?.point_id ?? 'unknown',\n    label:j.point_label ?? '',\n    latitude:j.latitude ?? null, longitude:j.longitude ?? null\n  };\n  const api = j.api_response ?? j.body ?? j;\n  const data = api?.data?.vendor_product_variations;\n  if (!data || !Array.isArray(data.items)) continue;\n  validPages++;\n  requestedProduct = requestedProduct || j.product_name || '';\n  city = j.city || city;\n  reportedVendors = Math.max(reportedVendors, Number(data.total_vendor || 0));\n  reportedProducts = Math.max(reportedProducts, Number(data.total_product || 0));\n  const ps = pointStats.get(point.id) || {point_id:point.id,point_label:point.label,latitude:point.latitude,longitude:point.longitude,pages:0,vendors_seen:0,products_seen:0};\n  ps.pages++; ps.vendors_seen += data.items.length;\n  for (const store of data.items) {\n    const storeId = String(store.id ?? store.vendor_id ?? '');\n    const storeName = store.title ?? store.name ?? '';\n    const address = store.address ?? store.full_address ?? store.location?.address ?? null;\n    const storeKey = storeId || norm(storeName)+'|'+norm(address);\n    const isOpen = store.is_open ?? null;\n    const canDeliver = store.does_deliver ?? store.deliver ?? null;\n    const category = isOpen === true ? (canDeliver === true ? 'باز و دارای ارسال' : canDeliver === false ? 'باز و فاقد ارسال' : 'باز؛ ارسال نامشخص')\n      : isOpen === false ? (canDeliver === true ? 'بسته و دارای اطلاعات ارسال' : canDeliver === false ? 'بسته و فاقد ارسال' : 'بسته؛ ارسال نامشخص') : 'وضعیت نامشخص';\n    if (!storeMap.has(storeKey)) storeMap.set(storeKey,{\n      store_id:storeId || null,store_name:storeName,area:store.area ?? store.district ?? store.neighborhood ?? null,\n      address,is_open:isOpen,store_status:isOpen === true?'باز':isOpen === false?'بسته':'نامشخص',\n      can_deliver:canDeliver,delivery_status:canDeliver === true?'دارد':canDeliver === false?'ندارد':'نامشخص',\n      store_category:category,seen_at_points:[]\n    });\n    const s = storeMap.get(storeKey);\n    if (!s.seen_at_points.some(x=>x.point_id===point.id)) s.seen_at_points.push(point);\n    for (const p of (Array.isArray(store.products)?store.products:[])) {\n      const title = p.title ?? p.name ?? '';\n      const price = numeric(p.price), discount = numeric(p.discount ?? 0);\n      if (!title || price === null || price <= 0 || discount === null) continue;\n      const wanted = tokens(requestedProduct).filter(t=>!stop.has(t));\n      const actual = tokens(title);\n      const matched = wanted.filter(t=>actual.some(x=>x===t || (t.length>=4 && x.includes(t)) || (x.length>=4 && t.includes(x)))).length;\n      const score = wanted.length ? matched/wanted.length : 0;\n      const exact = norm(title).includes(norm(requestedProduct));\n      const brand = p.brand?.title ?? p.brand_name ?? (typeof p.brand==='string'?p.brand:null);\n      // محصول برنددار و هم‌خانواده ولی با عنوان/وزن متفاوت، خودکار match قطعی نمی‌شود.\n      const matchStatus = exact ? 'مرتبط' : score >= 0.80 ? 'مرتبط' : score >= 0.45 ? 'نیازمند بازبینی' : 'نامرتبط';\n      if (matchStatus==='نامرتبط') continue;\n      const productId = String(p.id ?? p.product_id ?? p.variation_id ?? '');\n      const packageSize = p.weight ?? p.volume ?? p.size ?? p.package_size ?? null;\n      const packageText = (title.match(/\\d+(?:[.,]\\d+)?\\s*(?:کیلوگرم|کیلو|گرم|میلی.?لیتر|لیتر)/i)||[])[0] || '';\n      const packCount = (title.match(/(?:بسته\\s*)?(\\d+)\\s*عددی/i)||[])[1] || '';\n      const identity = productId || norm(title)+'|'+String(packageSize ?? packageText)+'|'+packCount;\n      const key = storeKey+'|'+identity;\n      if (!offerMap.has(key)) offerMap.set(key,{\n        store_id:storeId || null,store_name:storeName,area:store.area ?? store.district ?? store.neighborhood ?? null,address,\n        store_status:isOpen===true?'باز':isOpen===false?'بسته':'نامشخص',is_open:isOpen,\n        delivery_status:canDeliver===true?'دارد':canDeliver===false?'ندارد':'نامشخص',can_deliver:canDeliver,store_category:category,\n        product_id:productId || null,product_title:title,brand,package_size:packageSize ?? packageText || null,\n        pack_count:packCount ? Number(packCount):null,original_price:price,discount,final_price:price-discount,\n        stock:p.stock ?? p.quantity ?? null,stock_status:p.stock==null?'نامشخص':Number(p.stock)>0?'موجود':'ناموجود',\n        relevance:matchStatus,relevance_score:Number(score.toFixed(3)),seen_at_points:[]\n      });\n      const offer = offerMap.get(key);\n      if (!offer.seen_at_points.some(x=>x.point_id===point.id)) offer.seen_at_points.push(point);\n      // بهترین تطبیق/قیمت آخرین پاسخ نگه داشته می‌شود؛ برای یک SKU از چند نقطه، قیمت یکسان انتظار می‌رود.\n      if (score > offer.relevance_score) { offer.relevance_score=Number(score.toFixed(3)); offer.relevance=matchStatus; }\n    }\n  }\n  pointStats.set(point.id,ps);\n}\nconst codeSort=(a,b)=>{\n  const aa=String(a.store_id??''),bb=String(b.store_id??'');\n  const an=Number(aa),bn=Number(bb);\n  if (Number.isFinite(an)&&Number.isFinite(bn)) return an-bn;\n  return aa.localeCompare(bb,'en',{numeric:true});\n};\nconst stores=[...storeMap.values()].sort(codeSort);\nconst offers=[...offerMap.values()].sort((a,b)=>codeSort(a,b)||String(a.product_title).localeCompare(String(b.product_title),'fa'));\nconst points=[...pointStats.values()].sort((a,b)=>String(a.point_id).localeCompare(String(b.point_id)));\nconst rows=offers.map(o=>({\n  'کد فروشگاه':o.store_id,'نام فروشگاه':o.store_name,'منطقه':o.area,'آدرس':o.address,\n  'وضعیت فروشگاه':o.store_status,'ارسال':o.delivery_status,'دسته وضعیت':o.store_category,\n  'کد محصول':o.product_id,'نام محصول':o.product_title,'برند':o.brand,'وزن/حجم':o.package_size,'تعداد بسته':o.pack_count,\n  'قیمت اصلی':o.original_price,'تخفیف':o.discount,'قیمت نهایی':o.final_price,\n  'موجودی':o.stock,'وضعیت موجودی':o.stock_status,'تطبیق':o.relevance,'امتیاز تطبیق':o.relevance_score,\n  'نقاط مشاهده':o.seen_at_points.map(p=>p.point_label+' ('+p.point_id+')').join('، ')\n}));\nconst summary={\n  success:true,requested_product:requestedProduct,city,\n  points_requested:9,points_with_results:points.length,pages_received:validPages,\n  reported_total_vendors_max_per_point:reportedVendors,reported_total_products_max_per_point:reportedProducts,\n  unique_stores:stores.length,unique_offers:offers.length,\n  needs_review:offers.filter(x=>x.relevance==='نیازمند بازبینی').length,\n  open_with_delivery:offers.filter(x=>x.store_category==='باز و دارای ارسال').length,\n  open_without_delivery:offers.filter(x=>x.store_category==='باز و فاقد ارسال').length,\n  closed:offers.filter(x=>x.store_status==='بسته').length,\n  unknown_store_status:offers.filter(x=>x.store_status==='نامشخص').length\n};\nreturn [{json:{summary,stores,offers,points,excel_rows:rows,generated_at:new Date().toISOString()}}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        208,
-        -48
+        220,
+        0
       ],
-      "id": "356e6957-3a7a-46cb-b707-6b0cf667107c",
-      "name": "Extract and Normalize All Prices"
+      "id": "4b1e87d0-89b6-4b37-a6b5-3a9cc7e8c004",
+      "name": "Aggregate, Match and Sort by Store Code"
+    },
+    {
+      "parameters": {
+        "operation": "toFile",
+        "fileFormat": "xlsx",
+        "options": {
+          "fileName": "snappmarket-isfahan-prices.xlsx",
+          "sheetName": "قیمت‌ها"
+        }
+      },
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [
+        480,
+        0
+      ],
+      "id": "4b1e87d0-89b6-4b37-a6b5-3a9cc7e8c005",
+      "name": "Create Excel File"
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "responseDataSource": "set",
+        "inputFieldName": "data",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Disposition",
+                "value": "attachment; filename=snappmarket-isfahan-prices.xlsx"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        0
+      ],
+      "id": "4b1e87d0-89b6-4b37-a6b5-3a9cc7e8c006",
+      "name": "Return Excel"
     }
   ],
   "pinData": {},
@@ -201,29 +224,69 @@
       "main": [
         [
           {
-            "node": "Normalize Input",
+            "node": "Generate 9 Search Points",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Normalize Input": {
+    "Generate 9 Search Points": {
       "main": [
         [
           {
-            "node": "SnappMarket Search",
+            "node": "Loop Over Search Points",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "SnappMarket Search": {
+    "Loop Over Search Points": {
       "main": [
         [
           {
-            "node": "Extract and Normalize All Prices",
+            "node": "Search Current Point (All Pages)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Aggregate, Match and Sort by Store Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Current Point (All Pages)": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Search Points",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate, Match and Sort by Store Code": {
+      "main": [
+        [
+          {
+            "node": "Create Excel File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Excel File": {
+      "main": [
+        [
+          {
+            "node": "Return Excel",
             "type": "main",
             "index": 0
           }
