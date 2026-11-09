@@ -32,20 +32,6 @@
     },
     {
       "parameters": {
-        "batchSize": 1,
-        "options": {}
-      },
-      "type": "n8n-nodes-base.splitInBatches",
-      "typeVersion": 3,
-      "position": [
-        -300,
-        0
-      ],
-      "id": "4b1e87d0-89b6-4b37-a6b5-3a9cc7e8c002",
-      "name": "Loop Over Search Points"
-    },
-    {
-      "parameters": {
         "url": "https://svc.snapp.market/mobile/v3/search",
         "sendQuery": true,
         "queryParameters": {
@@ -235,25 +221,7 @@
       "main": [
         [
           {
-            "node": "Loop Over Search Points",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Loop Over Search Points": {
-      "main": [
-        [
-          {
             "node": "Search Current Point (All Pages)",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Aggregate, Match and Sort by Store Code",
             "type": "main",
             "index": 0
           }
@@ -264,7 +232,7 @@
       "main": [
         [
           {
-            "node": "Loop Over Search Points",
+            "node": "Aggregate, Match and Sort by Store Code",
             "type": "main",
             "index": 0
           }
