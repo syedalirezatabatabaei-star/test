@@ -199,19 +199,65 @@
       "name": "Restore Search Point Metadata"
     },
     {
-      "parameters": {
-        "mode": "runOnceForAllItems",
-        "language": "javaScript",
-        "jsCode": "const ExcelJS=require('exceljs'),data=$input.first().json,workbook=new ExcelJS.Workbook(),cache=new Map();\nworkbook.creator='SnappMarket Isfahan Price Collector';workbook.created=new Date();workbook.modified=new Date();\nconst addSheet=async(name,rows)=>{const list=Array.isArray(rows)?rows:[],ws=workbook.addWorksheet(name,{views:[{state:'frozen',ySplit:1,rightToLeft:true}]}),headers=list.length?Object.keys(list[0]):['نتیجه'];ws.columns=headers.map(h=>({header:h,key:h,width:Math.min(42,Math.max(14,String(h).length+4))}));ws.getRow(1).height=28;ws.getRow(1).font={bold:true,color:{argb:'FFFFFFFF'}};ws.getRow(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF244062'}};ws.autoFilter={from:{row:1,column:1},to:{row:Math.max(1,list.length+1),column:headers.length}};for(const obj of list){const row=ws.addRow(obj);if(Object.prototype.hasOwnProperty.call(obj,'تصویر'))row.height=58;row.eachCell({includeEmpty:true},c=>{c.alignment={vertical:'middle',wrapText:true};});}\n const ic=headers.indexOf('تصویر')+1,uc=headers.indexOf('لینک تصویر')+1;if(ic>0&&uc>0&&typeof fetch==='function')for(let i=0;i<list.length;i++){const url=list[i]['لینک تصویر'];if(!url||typeof url!=='string'||!/^https?:\\/\\//i.test(url))continue;try{let item=cache.get(url);if(!item){const res=await fetch(url);if(!res.ok)continue;const type=String(res.headers.get('content-type')||'').toLowerCase(),ext=type.includes('png')?'png':type.includes('gif')?'gif':(type.includes('jpeg')||type.includes('jpg'))?'jpeg':null;if(!ext)continue;const bytes=Buffer.from(await res.arrayBuffer());if(!bytes.length||bytes.length>3145728)continue;item={id:workbook.addImage({buffer:bytes,extension:ext})};cache.set(url,item);}ws.addImage(item.id,{tl:{col:ic-1,row:i+1},ext:{width:52,height:52}});ws.getColumn(ic).width=12;const cell=ws.getRow(i+2).getCell(uc);cell.value={text:'مشاهده تصویر',hyperlink:url};cell.font={color:{argb:'FF0563C1'},underline:true};}catch(e){}}\n};\nawait addSheet('خلاصه',Object.entries(data.summary||{}).map(([k,v])=>({'شاخص':k,'مقدار':String(v??'')})));\nawait addSheet('محصولات دقیق',data.exact_rows);await addSheet('برندهای مشابه',data.similar_brand_rows);await addSheet('وزن‌های دیگر',data.other_size_rows);await addSheet('نزدیک‌ترین ۶',data.nearest_rows);await addSheet('فروشگاه‌ها',data.store_rows);await addSheet('پوشش نقاط',data.point_rows);\nconst buf=Buffer.from(await workbook.xlsx.writeBuffer()),binary=await this.helpers.prepareBinaryData(buf,'snappmarket-isfahan-prices.xlsx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');return[{json:{summary:data.summary},binary:{data:binary}}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "id": "4b1e87d0-89b6-4b37-a6b5-3a9cc7e8c005",
+      "name": "Prepare Excel Rows",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
       "position": [
         480,
         0
       ],
-      "id": "4b1e87d0-89b6-4b37-a6b5-3a9cc7e8c005",
-      "name": "Build Multi-sheet XLSX"
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a7b2c1d4-9e30-4a55-8c10-1b2d3e4f5a60",
+              "name": "rows",
+              "value": "={{ [...($json.exact_rows || []).map(x => ({'نوع داده':'محصول دقیق', ...x})), ...($json.similar_brand_rows || []).map(x => ({'نوع داده':'برند مشابه', ...x})), ...($json.other_size_rows || []).map(x => ({'نوع داده':'وزن دیگر', ...x})), ...($json.nearest_rows || []).map(x => ({'نوع داده':'۶ مورد نزدیک', ...x})), ...($json.store_rows || []).map(x => ({'نوع داده':'فروشگاه', ...x})), ...($json.point_rows || []).map(x => ({'نوع داده':'پوشش نقطه', ...x})), ...Object.entries($json.summary || {}).map(([k,v]) => ({'نوع داده':'خلاصه','شاخص':k,'مقدار':String(v ?? '')}))] }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {
+          "includeOtherFields": false
+        }
+      }
+    },
+    {
+      "id": "b8c3d2e5-0f41-4b66-9d21-2c3e4f5a6b71",
+      "name": "Split Excel Rows",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        700,
+        0
+      ],
+      "parameters": {
+        "fieldToSplitOut": "rows",
+        "include": "noOtherFields",
+        "options": {}
+      }
+    },
+    {
+      "id": "c9d4e3f6-1a52-4c77-ae32-3d4f5a6b7c82",
+      "name": "Convert to Excel (Native)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        920,
+        0
+      ],
+      "parameters": {
+        "operation": "xlsx",
+        "options": {
+          "fileName": "snappmarket-isfahan-prices.xlsx",
+          "headerRow": true,
+          "sheetName": "نتایج"
+        },
+        "putOutputFileInField": "data"
+      }
     }
   ],
   "pinData": {},
@@ -264,7 +310,7 @@
       "main": [
         [
           {
-            "node": "Build Multi-sheet XLSX",
+            "node": "Prepare Excel Rows",
             "type": "main",
             "index": 0
           }
@@ -272,6 +318,39 @@
       ]
     },
     "Build Multi-sheet XLSX": {
+      "main": [
+        [
+          {
+            "node": "Return Excel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Excel Rows": {
+      "main": [
+        [
+          {
+            "node": "Split Excel Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Excel Rows": {
+      "main": [
+        [
+          {
+            "node": "Convert to Excel (Native)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to Excel (Native)": {
       "main": [
         [
           {
