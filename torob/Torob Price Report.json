@@ -1,5 +1,5 @@
 {
-  "name": "Torob Price Report - Isfahan",
+  "name": "Torob Price Report - Isfahan - All Similar Products",
   "nodes": [
     {
       "id": "a1000000-0000-4000-8000-000000000001",
@@ -325,20 +325,6 @@
       }
     },
     {
-      "id": "a1000000-0000-4000-8000-000000000011",
-      "name": "Keep Six Similar Products",
-      "type": "n8n-nodes-base.limit",
-      "typeVersion": 1,
-      "position": [
-        880,
-        -20
-      ],
-      "parameters": {
-        "maxItems": 6,
-        "keep": "first"
-      }
-    },
-    {
       "id": "a1000000-0000-4000-8000-000000000012",
       "name": "Mark Similar Products",
       "type": "n8n-nodes-base.set",
@@ -596,7 +582,7 @@
           "assignments": [
             {
               "id": "b2000000-0000-4000-8000-000000000019",
-              "name": "record_type",
+              "name": "نوع داده",
               "value": "پیشنهاد فروشگاه اینترنتی",
               "type": "string"
             },
@@ -988,7 +974,7 @@
           "assignments": [
             {
               "id": "b2000000-0000-4000-8000-000000000025",
-              "name": "record_type",
+              "name": "نوع داده",
               "value": "فروشگاه حضوری",
               "type": "string"
             },
@@ -1189,7 +1175,7 @@
         "options": {
           "fileName": "torob-isfahan-price-report.xlsx",
           "headerRow": true,
-          "sheetName": "قیمت‌های ترب"
+          "sheetName": "نتایج"
         },
         "putOutputFileInField": "data"
       }
@@ -1353,7 +1339,7 @@
       "main": [
         [
           {
-            "node": "Keep Six Similar Products",
+            "node": "Mark Similar Products",
             "type": "main",
             "index": 0
           }
@@ -1573,6 +1559,7 @@
   },
   "pinData": {},
   "meta": {
-    "templateCredsSetupCompleted": true
+    "templateCredsSetupCompleted": true,
+    "description": "Collect Torob search products, every similar product returned by Torob, online offers and in-person stores; export one native XLSX sheet aligned with the SnappMarket results-sheet layout. Similar-product endpoint is consumed as returned; seller endpoint pagination is not assumed unless Torob exposes it."
   }
 }
