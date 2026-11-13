@@ -1,5 +1,5 @@
 {
-  "name": "Torob Unified Failover - MCP to Excel",
+  "name": "Torob Webhook to MCP Bridge - Excel",
   "nodes": [
     {
       "parameters": {
@@ -67,7 +67,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.TOROB_BRIDGE_URL + '/api/search' }}",
+        "url": "http://torob-bridge:3001/api/search",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -111,7 +111,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const response = $json;\nconst body = response.body ?? response;\nconst status = Number(response.statusCode ?? 200);\nif (status < 200 || status >= 300 || body.ok !== true) return [{ json: { ok: false, statusCode: status || 502, error: body.error ?? 'Torob bridge failed', code: body.code ?? 'BRIDGE_ERROR', human_review_required: body.human_review_required ?? false, retry_automatically: false } }];\nif (!Array.isArray(body.rows)) return [{ json: { ok: false, statusCode: 502, error: 'Bridge response has no rows array', code: 'INVALID_BRIDGE_RESPONSE' } }];\nif (body.rows.length === 0) return [{ json: { ok: true, 'نوع داده': 'وضعیت', 'نام محصول': body.query ?? '', 'برند': '', 'مدل': '', 'شناسه محصول ترب': '', 'نام فروشگاه': '', 'قیمت': null, 'لینک محصول': '', 'لینک فروشگاه': '', 'وضعیت موجودی': 'نتیجه‌ای یافت نشد', 'تاریخ و زمان دریافت اطلاعات': body.retrieved_at ?? new Date().toISOString(), 'توضیحات': 'جست‌وجو با موفقیت انجام شد اما پیشنهاد فروشنده‌ای دریافت نشد' } }];\nreturn body.rows.map(row => ({ json: { ok: true, ...row } }));"
+        "jsCode": "const response = $json ?? {};\nconst body = response.body && typeof response.body === 'object' ? response.body : response;\nconst status = Number(response.statusCode ?? response.status ?? (body.ok === true ? 200 : 502));\nif (status < 200 || status >= 300 || body.ok !== true) {\n  return [{ json: {\n    ok: false,\n    statusCode: status || 502,\n    code: body.code ?? 'BRIDGE_ERROR',\n    error: body.error ?? 'Torob bridge failed',\n    human_review_required: body.human_review_required === true,\n    retry_automatically: false\n  } }];\n}\nif (!Array.isArray(body.rows)) {\n  return [{ json: { ok: false, statusCode: 502, code: 'INVALID_BRIDGE_RESPONSE', error: 'Bridge response has no rows array', retry_automatically: false } }];\n}\nif (body.rows.length === 0) {\n  return [{ json: { ok: true, 'نوع داده': 'وضعیت', 'نام محصول': body.query ?? '', 'برند': '', 'مدل': '', 'شناسه محصول ترب': '', 'نام فروشگاه': '', 'قیمت': null, 'لینک محصول': '', 'لینک فروشگاه': '', 'وضعیت موجودی': 'نتیجه‌ای یافت نشد', 'تاریخ و زمان دریافت اطلاعات': body.retrieved_at ?? new Date().toISOString(), 'توضیحات': 'جست‌وجو با موفقیت انجام شد اما پیشنهاد فروشنده‌ای دریافت نشد' } }];\n}\nreturn body.rows.map(row => ({ json: { ...row } }));"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
