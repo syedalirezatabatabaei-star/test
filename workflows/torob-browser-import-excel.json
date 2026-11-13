@@ -16,13 +16,7 @@
       "position": [
         -800,
         0
-      ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "REPLACE_AFTER_IMPORT",
-          "name": "Torob Browser Import Header Auth"
-        }
-      }
+      ]
     },
     {
       "parameters": {
