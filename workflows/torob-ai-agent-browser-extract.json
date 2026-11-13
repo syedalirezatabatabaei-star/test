@@ -1,5 +1,5 @@
 {
-  "name": "Torob AI Agent Browser Extraction - Excel",
+  "name": "Torob Product Extraction - Excel (No AI)",
   "nodes": [
     {
       "parameters": {
@@ -102,94 +102,9 @@
     },
     {
       "parameters": {
-        "promptType": "define",
-        "text": "={{ 'Analyze this structured browser extraction result and normalize it for Excel. Do not invent or enrich missing values. Query: '+$('Validate Input').item.json.query+'\\nRaw result: '+JSON.stringify($json) }}",
-        "options": {
-          "systemMessage": "You normalize extracted product/seller data only. Preserve observed values. Never infer prices or sellers. If challenge_detected or human_review_required is true, return exactly JSON with ok:false and human_review_required:true. Otherwise return JSON {ok:true,products:[...]}. No CAPTCHA bypass instructions."
-        }
-      },
-      "id": "a1010001-0000-4000-8000-000000000005",
-      "name": "AI Data Structuring Agent",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 2.2,
-      "position": [
-        20,
-        0
-      ]
-    },
-    {
-      "parameters": {
-        "model": {
-          "__rl": true,
-          "value": "gpt-4o-mini",
-          "mode": "list",
-          "cachedResultName": "gpt-4o-mini"
-        },
-        "options": {
-          "temperature": 0
-        }
-      },
-      "id": "a1010001-0000-4000-8000-000000000006",
-      "name": "OpenAI Chat Model",
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.2,
-      "position": [
-        0,
-        260
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "let v;const raw=$json.output??$json.text??$json;try{v=typeof raw==='object'?raw:JSON.parse(String(raw).replace(/^```json\\s*/,'').replace(/```$/,''));}catch{return[{json:{ok:false,statusCode:502,error:'Invalid AI JSON'}}];}if(v.human_review_required||v.challenge_detected||v.ok===false)return[{json:{ok:false,statusCode:423,code:'HUMAN_REVIEW_REQUIRED',error:v.message??'Torob requires human verification',human_review_required:true,retry_automatically:false}}];if(!Array.isArray(v.products)||!v.products.length)return[{json:{ok:false,statusCode:404,error:'No products extracted'}}];return v.products.map(p=>({json:{'نام محصول':p.product_name??p.title??'','برند':p.brand??'','مدل':p.model??'','نام فروشگاه':p.seller_name??'','قیمت (تومان)':p.price_toman??null,'لینک محصول':p.product_url??'','لینک فروشگاه':p.seller_url??'','موجودی':p.availability??'','شهر':p.city??'','زمان استخراج':new Date().toISOString()}}));"
-      },
-      "id": "a1010001-0000-4000-8000-000000000007",
-      "name": "Normalize Results",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        280,
-        -100
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "a1010002-0000-4000-8000-000000000002",
-              "leftValue": "={{ $json.ok }}",
-              "rightValue": false,
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "a1010001-0000-4000-8000-000000000008",
-      "name": "Failed?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        500,
-        -100
-      ]
-    },
-    {
-      "parameters": {
         "operation": "xlsx",
         "options": {
-          "fileName": "torob-ai-extraction.xlsx",
+          "fileName": "torob-product-extraction.xlsx",
           "headerRow": true,
           "sheetName": "Torob"
         },
@@ -200,8 +115,8 @@
       "type": "n8n-nodes-base.convertToFile",
       "typeVersion": 1.1,
       "position": [
-        720,
-        -180
+        960,
+        -260
       ]
     },
     {
@@ -214,7 +129,7 @@
             "entries": [
               {
                 "name": "Content-Disposition",
-                "value": "attachment; filename=torob-ai-extraction.xlsx"
+                "value": "attachment; filename=torob-product-extraction.xlsx"
               }
             ]
           }
@@ -225,8 +140,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        940,
-        -180
+        1180,
+        -260
       ]
     },
     {
@@ -242,7 +157,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        720,
+        960,
         80
       ]
     },
@@ -260,7 +175,7 @@
       "typeVersion": 1.1,
       "position": [
         -220,
-        160
+        600
       ]
     },
     {
@@ -295,6 +210,286 @@
       "position": [
         0,
         -120
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "torob-manual-review",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1010001-0000-4000-8000-000000000014",
+      "name": "Manual Review Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        -900,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const b=$json.body??$json;const review_id=String(b.review_id??'').trim();const query=String(b.query??'').trim();const max_products=Number(b.max_products??10);if(!review_id||!query)return[{json:{ok:false,statusCode:400,error:'review_id and query are required'}}];if(!Number.isInteger(max_products)||max_products<1||max_products>20)return[{json:{ok:false,statusCode:400,error:'max_products must be 1..20'}}];return[{json:{ok:true,review_id,query,max_products}}];"
+      },
+      "id": "a1010001-0000-4000-8000-000000000015",
+      "name": "Validate Manual Review",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -680,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a1010001-0000-4000-8000-000000000016-condition",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1010001-0000-4000-8000-000000000016",
+      "name": "Manual Review Input Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -460,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://torob-bridge:3001/api/reviews/' + $('Validate Manual Review').item.json.review_id + '/approve' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "responseFormat": "json",
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "a1010001-0000-4000-8000-000000000017",
+      "name": "Approve Manual Review",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -220,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a1010001-0000-4000-8000-000000000018-condition",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1010001-0000-4000-8000-000000000018",
+      "name": "Review Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://torob-bridge:3001/api/search",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ { query: $('Validate Manual Review').item.json.query, max_products: $('Validate Manual Review').item.json.max_products, include_variants: true, review_id: $('Validate Manual Review').item.json.review_id } }}",
+        "options": {
+          "timeout": 900000,
+          "response": {
+            "response": {
+              "responseFormat": "json",
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "a1010001-0000-4000-8000-000000000019",
+      "name": "Manual Retry Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a1010001-0000-4000-8000-000000000020-condition",
+              "leftValue": "={{ $json.ok === true && Array.isArray($json.rows) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1010001-0000-4000-8000-000000000020",
+      "name": "Manual Retry Successful?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a1010001-0000-4000-8000-000000000021-condition",
+              "leftValue": "={{ $json.ok === true && Array.isArray($json.rows) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1010001-0000-4000-8000-000000000021",
+      "name": "Bridge Export Successful?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "if($json.ok!==true||!Array.isArray($json.rows))return[{json:{ok:false,statusCode:$json.statusCode??502,error:$json.error??'Bridge returned no rows',code:$json.code??'INVALID_BRIDGE_RESPONSE'}}];if($json.rows.length===0)return[{json:{ok:false,statusCode:404,error:'No product or seller rows were returned'}}];return $json.rows.map(row=>({json:row}));"
+      },
+      "id": "a1010001-0000-4000-8000-000000000022",
+      "name": "Prepare Excel Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a1010001-0000-4000-8000-000000000023-condition",
+              "leftValue": "={{ $json.ok !== false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1010001-0000-4000-8000-000000000023",
+      "name": "Rows Ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        -180
       ]
     }
   ],
@@ -350,40 +545,7 @@
         ]
       ]
     },
-    "OpenAI Chat Model": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "AI Data Structuring Agent",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "AI Data Structuring Agent": {
-      "main": [
-        [
-          {
-            "node": "Normalize Results",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Normalize Results": {
-      "main": [
-        [
-          {
-            "node": "Failed?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Failed?": {
+    "Manual Review Required?": {
       "main": [
         [
           {
@@ -394,7 +556,54 @@
         ],
         [
           {
+            "node": "Bridge Export Successful?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bridge Export Successful?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Excel Rows",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Excel Rows": {
+      "main": [
+        [
+          {
+            "node": "Rows Ready?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rows Ready?": {
+      "main": [
+        [
+          {
             "node": "Create Excel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Error",
             "type": "main",
             "index": 0
           }
@@ -412,18 +621,98 @@
         ]
       ]
     },
-    "Manual Review Required?": {
+    "Manual Review Webhook": {
       "main": [
         [
           {
-            "node": "Return Error",
+            "node": "Validate Manual Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Manual Review": {
+      "main": [
+        [
+          {
+            "node": "Manual Review Input Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Review Input Valid?": {
+      "main": [
+        [
+          {
+            "node": "Approve Manual Review",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "AI Data Structuring Agent",
+            "node": "Return Invalid Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approve Manual Review": {
+      "main": [
+        [
+          {
+            "node": "Review Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Review Approved?": {
+      "main": [
+        [
+          {
+            "node": "Manual Retry Search",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Retry Search": {
+      "main": [
+        [
+          {
+            "node": "Manual Retry Successful?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Retry Successful?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Excel Rows",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Error",
             "type": "main",
             "index": 0
           }
