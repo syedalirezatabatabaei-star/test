@@ -1,0 +1,402 @@
+{
+  "name": "Digikala Products to Excel - Public Search",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "digikala-products-excel",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "dkg00001-0000-4000-8000-000000000001",
+      "name": "Digikala Products Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        -900,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const b=$json.body??$json;\nconst query=String(b.query??'').trim();\nconst page=Math.max(1,Math.min(100,Math.floor(Number(b.page)||1)));\nconst limit=Math.max(1,Math.min(20,Math.floor(Number(b.limit)||20)));\nconst sortMap={relevance:22,cheapest:20,most_expensive:21,best_selling:7,most_viewed:4,newest:1,fastest_delivery:25,buyers_pick:27};\nconst sort=sortMap[String(b.sort??'relevance')];\nconst num=v=>v==null||v===''?null:Number(v);\nconst minPrice=num(b.min_price),maxPrice=num(b.max_price),categoryId=num(b.category_id);\nconst errors=[];\nif(query.length<2)errors.push('query must contain at least 2 characters');\nif(minPrice!==null&&(!Number.isFinite(minPrice)||minPrice<0))errors.push('min_price must be a non-negative Toman amount');\nif(maxPrice!==null&&(!Number.isFinite(maxPrice)||maxPrice<0))errors.push('max_price must be a non-negative Toman amount');\nif(minPrice!==null&&maxPrice!==null&&minPrice>maxPrice)errors.push('min_price cannot exceed max_price');\nif(categoryId!==null&&(!Number.isInteger(categoryId)||categoryId<1))errors.push('category_id must be a positive integer');\nif(!sort)errors.push('sort must be relevance, cheapest, most_expensive, best_selling, most_viewed, newest, fastest_delivery, or buyers_pick');\nif(errors.length)return[{json:{ok:false,statusCode:400,error:errors.join('; ')}}];\nreturn[{json:{ok:true,query,page,limit,sort,min_price:minPrice,max_price:maxPrice,category_id:categoryId,in_stock_only:b.in_stock_only!==false,source:'digikala',requested_at:new Date().toISOString()}}];"
+      },
+      "id": "dkg00001-0000-4000-8000-000000000002",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dkg00001-0000-4000-8000-000000000003",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "dkg00001-0000-4000-8000-000000000004",
+      "name": "Input Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.digikala.com/discovery/api/v2/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $('Validate Input').first().json.query }}"
+            },
+            {
+              "name": "page",
+              "value": "={{ $('Validate Input').first().json.page }}"
+            },
+            {
+              "name": "sort",
+              "value": "={{ $('Validate Input').first().json.sort }}"
+            },
+            {
+              "name": "price[min]",
+              "value": "={{ $('Validate Input').first().json.min_price === null ? undefined : $('Validate Input').first().json.min_price * 10 }}"
+            },
+            {
+              "name": "price[max]",
+              "value": "={{ $('Validate Input').first().json.max_price === null ? undefined : $('Validate Input').first().json.max_price * 10 }}"
+            },
+            {
+              "name": "categories[]",
+              "value": "={{ $('Validate Input').first().json.category_id ?? undefined }}"
+            },
+            {
+              "name": "has_selling_stock",
+              "value": "={{ $('Validate Input').first().json.in_stock_only ? 1 : undefined }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept-Language",
+              "value": "fa-IR,fa;q=0.9,en;q=0.8"
+            },
+            {
+              "name": "Origin",
+              "value": "https://www.digikala.com"
+            },
+            {
+              "name": "Referer",
+              "value": "https://www.digikala.com/"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 45000,
+          "response": {
+            "response": {
+              "responseFormat": "json",
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "dkg00001-0000-4000-8000-000000000005",
+      "name": "Search Digikala Products",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -220,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input=$('Validate Input').first().json;\nconst response=$json,status=Number(response.statusCode??200);\nif(status>=400)return[{json:{ok:false,statusCode:status,error:'Digikala search returned HTTP '+status+'. Stop on 403/429 and retry later; do not bypass access controls.'}}];\nconst body=response.body??response;\nif(body.status&&Number(body.status)!==200)return[{json:{ok:false,statusCode:Number(body.status),error:'Digikala API reported an unsuccessful response.'}}];\nconst widgets=body.data?.widgets??[];\nconst listingWidgets=widgets.filter(w=>w.type==='vertical_product_listing');\nif(listingWidgets.length!==1)return[{json:{ok:false,statusCode:502,error:'Expected one product listing in Digikala response; upstream response structure may have changed.'}}];\nconst listing=listingWidgets[0].data??{};\nconst productWidgets=Array.isArray(listing.widgets)?listing.widgets.filter(w=>w.type==='product'):[];\nconst toman=v=>{const n=Number(v);return Number.isFinite(n)&&n>0?Math.round(n/10):null};\nconst seen=new Set(),rows=[];\nfor(const w of productWidgets){\n const p=w.data??{},v=p.default_variant??{},price=v.price??{},seller=v.seller??{},brand=p.brand??{},category=p.category??{},rating=p.rating??{};\n const pid=String(p.id??'');if(!pid||seen.has(pid))continue;seen.add(pid);\n const current=toman(price.selling_price),before=toman(price.rrp_price);\n const discount=Number(price.discount_percent??price.discount??0);\n rows.push({\n  product_id:pid,product_name:String(p.title_fa??p.title??'').trim(),\n  price_toman:current,original_price_toman:before,\n  discount_percent:Number.isFinite(discount)?discount:null,\n  in_stock:String(p.status??v.status??'').toLowerCase()==='marketable'||(Number(price.marketable_stock)>0),\n  stock_left:price.marketable_stock??null,\n  seller_name:seller.title??null,seller_code:seller.code??null,\n  seller_rating_percent:seller.rating?.total_rate??null,seller_rating_count:seller.rating?.total_count??null,\n  brand:brand.title_fa??brand.title??null,category:category.title_fa??category.title??null,\n  variant_id:v.id??null,color:v.color?.title??null,warranty:v.warranty?.title_fa??null,\n  is_incredible:Boolean(price.is_incredible),is_digiplus:Boolean(price.is_locked_for_digiplus),\n  product_url:'https://www.digikala.com/product/dkp-'+pid+'/',\n  captured_at:new Date().toISOString()\n });\n}\nconst pager=listing.pager??{};\nif(!rows.length)return[{json:{ok:false,statusCode:422,error:'No products were returned. Try another Persian query or page.',query:input.query,page:input.page,total:pager.total_items??0}}];\nreturn[{json:{ok:true,query:input.query,page:input.page,count:Math.min(rows.length,input.limit),total:pager.total_items??rows.length,total_pages:pager.total_pages??null,rows:rows.slice(0,input.limit)}}];"
+      },
+      "id": "dkg00001-0000-4000-8000-000000000006",
+      "name": "Normalize Products",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        20,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dkg00001-0000-4000-8000-000000000007",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "dkg00001-0000-4000-8000-000000000008",
+      "name": "Products Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        260,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "if($json.ok!==true||!Array.isArray($json.rows))return[{json:{ok:false,statusCode:$json.statusCode??422,error:$json.error??'No products'}}];return $json.rows.map(row=>({json:row}));"
+      },
+      "id": "dkg00001-0000-4000-8000-000000000009",
+      "name": "Prepare Excel Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {
+          "fileName": "digikala-products.xlsx",
+          "headerRow": true,
+          "sheetName": "Digikala Products"
+        },
+        "putOutputFileInField": "data"
+      },
+      "id": "dkg00001-0000-4000-8000-000000000010",
+      "name": "Create Excel File",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        740,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "responseDataSource": "set",
+        "inputFieldName": "data",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Disposition",
+                "value": "attachment; filename=digikala-products.xlsx"
+              }
+            ]
+          }
+        }
+      },
+      "id": "dkg00001-0000-4000-8000-000000000011",
+      "name": "Return Excel",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        980,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {ok:false,error:$json.error,statusCode:$json.statusCode||422} }}",
+        "options": {
+          "responseCode": "={{ $json.statusCode || 422 }}"
+        }
+      },
+      "id": "dkg00001-0000-4000-8000-000000000012",
+      "name": "Return Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        500,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {ok:false,error:$json.error,statusCode:$json.statusCode||400} }}",
+        "options": {
+          "responseCode": "={{ $json.statusCode || 400 }}"
+        }
+      },
+      "id": "dkg00001-0000-4000-8000-000000000013",
+      "name": "Return Input Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -220,
+        160
+      ]
+    }
+  ],
+  "connections": {
+    "Digikala Products Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Input Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input Valid?": {
+      "main": [
+        [
+          {
+            "node": "Search Digikala Products",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Input Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Digikala Products": {
+      "main": [
+        [
+          {
+            "node": "Normalize Products",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Products": {
+      "main": [
+        [
+          {
+            "node": "Products Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Products Found?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Excel Rows",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Excel Rows": {
+      "main": [
+        [
+          {
+            "node": "Create Excel File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Excel File": {
+      "main": [
+        [
+          {
+            "node": "Return Excel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
