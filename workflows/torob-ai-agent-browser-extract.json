@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const b=$json.body??$json;const query=String(b.product??b.query??'').trim();const max=Number(b.max_products??10);if(!query)return[{json:{ok:false,statusCode:400,error:'product is required'}}];if(!Number.isInteger(max)||max<1||max>20)return[{json:{ok:false,statusCode:400,error:'max_products must be 1..20'}}];return[{json:{ok:true,query,max_products:max}}];"
+        "jsCode": "const b=$json.body??$json;const query=String(b.product??b.query??'').trim();const max=Number(b.max_products??10);const reviewId=b.review_id?String(b.review_id):undefined;if(!query)return[{json:{ok:false,statusCode:400,error:'product is required'}}];if(!Number.isInteger(max)||max<1||max>20)return[{json:{ok:false,statusCode:400,error:'max_products must be 1..20'}}];return[{json:{ok:true,query,max_products:max,...(reviewId?{review_id:reviewId}:{})}}];"
       },
       "id": "a1010001-0000-4000-8000-000000000002",
       "name": "Validate Input",
@@ -67,14 +67,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://torob-browser:3002/api/extract",
+        "url": "http://torob-bridge:3001/api/search",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "={{ 'Bearer ' + $env.TOROB_BRIDGE_TOKEN }}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -84,7 +80,7 @@
         "sendBody": true,
         "contentType": "json",
         "specifyBody": "json",
-        "jsonBody": "={{ { query: $json.query, max_products: $json.max_products } }}",
+        "jsonBody": "={{ { query: $json.query, max_products: $json.max_products, ...( $json.review_id ? { review_id: $json.review_id } : {} ) } }}",
         "options": {
           "timeout": 900000,
           "response": {
@@ -118,7 +114,7 @@
       "typeVersion": 2.2,
       "position": [
         20,
-        -100
+        0
       ]
     },
     {
@@ -139,7 +135,7 @@
       "typeVersion": 1.2,
       "position": [
         0,
-        160
+        260
       ]
     },
     {
@@ -238,7 +234,7 @@
         "respondWith": "json",
         "responseBody": "={{ $json }}",
         "options": {
-          "responseCode": "={{ $json.statusCode || 502 }}"
+          "responseCode": "={{ $json.statusCode || ($json.human_review_required ? 423 : 502) }}"
         }
       },
       "id": "a1010001-0000-4000-8000-000000000011",
@@ -265,6 +261,40 @@
       "position": [
         -220,
         160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a1010002-0000-4000-8000-000000000003",
+              "leftValue": "={{ $json.human_review_required }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1010001-0000-4000-8000-000000000013",
+      "name": "Manual Review Required?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        -120
       ]
     }
   ],
@@ -313,7 +343,7 @@
       "main": [
         [
           {
-            "node": "AI Data Structuring Agent",
+            "node": "Manual Review Required?",
             "type": "main",
             "index": 0
           }
@@ -376,6 +406,24 @@
         [
           {
             "node": "Return Excel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Review Required?": {
+      "main": [
+        [
+          {
+            "node": "Return Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Data Structuring Agent",
             "type": "main",
             "index": 0
           }
