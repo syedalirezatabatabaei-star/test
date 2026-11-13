@@ -5,7 +5,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "okala-products-excel",
-        "authentication": "headerAuth",
+        "authentication": "none",
         "responseMode": "responseNode",
         "options": {}
       },
@@ -20,7 +20,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const b=$json.body??$json;\nconst query=String(b.query??'').trim();\nconst slug=String(b.category_slug??'').trim();\nconst lat=Number(b.lat),lon=Number(b.lon);\nconst limit=Math.max(1,Math.min(100,Number(b.limit)||50));\nconst storeId=b.store_id==null||b.store_id===''?null:Number(b.store_id);\nconst errors=[];\nif(!query&&!slug)errors.push('query or category_slug is required');\nif(!slug&&!query)errors.push('query is required for category discovery');\nif(!Number.isFinite(lat)||lat<25||lat>40)errors.push('lat must be between 25 and 40');\nif(!Number.isFinite(lon)||lon<44||lon>64)errors.push('lon must be between 44 and 64');\nif(storeId!==null&&(!Number.isInteger(storeId)||storeId<1))errors.push('store_id must be a positive integer');\nif(errors.length)return[{json:{ok:false,statusCode:400,error:errors.join('; ')}}];\nreturn[{json:{ok:true,query:query||slug,category_slug:slug||null,lat,lon,limit,store_id:storeId,source:'okala',requested_at:new Date().toISOString()}}];"
+        "jsCode": "const b=$json.body??$json;\nconst query=String(b.query??'').trim();\nconst slug=String(b.category_slug??'').trim();\nconst lat=Number(b.lat??32.6546),lon=Number(b.lon??51.6680);\nconst limit=Math.max(1,Math.min(100,Number(b.limit)||50));\nconst storeId=b.store_id==null||b.store_id===''?null:Number(b.store_id);\nconst errors=[];\nif(!query&&!slug)errors.push('query or category_slug is required');\nif(!slug&&!query)errors.push('query is required for category discovery');\nif(!Number.isFinite(lat)||lat<25||lat>40)errors.push('lat must be between 25 and 40');\nif(!Number.isFinite(lon)||lon<44||lon>64)errors.push('lon must be between 44 and 64');\nif(storeId!==null&&(!Number.isInteger(storeId)||storeId<1))errors.push('store_id must be a positive integer');\nif(errors.length)return[{json:{ok:false,statusCode:400,error:errors.join('; ')}}];\nreturn[{json:{ok:true,query:query||slug,category_slug:slug||null,lat,lon,limit,store_id:storeId,source:'okala',requested_at:new Date().toISOString()}}];"
       },
       "id": "0ka10001-0000-4000-8000-000000000002",
       "name": "Validate Input",

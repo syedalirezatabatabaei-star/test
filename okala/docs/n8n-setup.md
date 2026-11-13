@@ -1,21 +1,18 @@
 # راه‌اندازی n8n برای اُکالا
 
-## Credential
-در n8n یک Header Auth credential بسازید:
-- Name: `X-Okala-Import-Key`
-- Value: secret تصادفی قوی
-در نود Webhook همین credential را انتخاب کنید. secret فقط در credential manager نگهداری شود.
+## Authentication
+در تنظیم فعلی، Authentication نود Webhook روی `None` است. URL وبهوک را عمومی منتشر نکنید؛ هر دارنده URL می‌تواند درخواست بفرستد. برای استفاده دائمی، Header Auth را فعال کنید.
 
 ## نمونه تست
 ```bash
 curl -X POST 'https://YOUR-N8N-DOMAIN/webhook/okala-products-excel' \
   -H 'Content-Type: application/json' \
   -H 'X-Okala-Import-Key: YOUR_SECRET' \
-  -d '{"query":"شیر","lat":35.7219,"lon":51.3347,"limit":50}' \
+  -d '{"query":"شیر","lat":32.6546,"lon":51.6680,"limit":50}' \
   --output okala-products.xlsx
 ```
 
-مختصات نمونه صرفاً برای شکل درخواست است؛ آن‌ها را با مختصات واقعی محدوده سرویس‌دهی مقصد جایگزین کنید.
+اگر مختصات را نفرستید، ورک‌فلو از مرکز شهر اصفهان (32.6546, 51.6680) استفاده می‌کند. مختصات نمونه برای مرکز شهر است؛ برای محدوده دقیق سرویس‌دهی، مختصات همان محله را ارسال کنید.
 
 ## عیب‌یابی
 - 400: ورودی query/category_slug یا مختصات نامعتبر است.
