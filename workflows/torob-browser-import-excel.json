@@ -1,0 +1,214 @@
+{
+  "name": "Torob Browser Import - Excel (No AI)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "torob-browser-import-excel",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b2010001-0000-4000-8000-000000000001",
+      "name": "Browser Import Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        -800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const b=$json.body??$json,query=String(b.query??'').trim(),sourceUrl=String(b.source_url??'').trim(),products=b.products;\nif(!query)return[{json:{ok:false,statusCode:400,error:'query is required'}}];\nif(!Array.isArray(products)||products.length<1||products.length>500)return[{json:{ok:false,statusCode:400,error:'products must be an array of 1..500 items'}}];\nif(sourceUrl&&!/^https:\\/\\/(www\\.)?torob\\.com\\//i.test(sourceUrl))return[{json:{ok:false,statusCode:400,error:'source_url must be a valid Torob URL'}}];\nconst digits=s=>String(s??'').replace(/[۰-۹٠-٩]/g,ch=>{const i='۰۱۲۳۴۵۶۷۸۹'.indexOf(ch);return i>=0?String(i):String('٠١٢٣٤٥٦٧٨٩'.indexOf(ch))});\nconst numeric=s=>{if(s==null)return null;const raw=digits(s).replace(/\\u066B/g,'.').replace(/\\u066C/g,',');const match=raw.match(/[0-9][0-9,._\\s]*/);if(!match)return null;let n=Number(match[0].replace(/[,._\\s]/g,''));if(/میلیون|million/i.test(raw)&&n<1000000)n*=1000000;return Number.isFinite(n)?Math.round(n):null};\nconst productId=url=>String(url).match(/\\/p\\/([^/?#]+)/i)?.[1]??'';\nconst canonical=url=>String(url).split('#')[0].split('?')[0].replace(/\\/+$/,'');\nconst seen=new Set(),rows=[];\nfor(const p of products){if(!p||typeof p!=='object')continue;const title=String(p.title??p.product_title??'').trim(),url=String(p.url??p.product_url??'').trim();if(!title||!url)continue;const pid=String(p.product_id??'').trim()||productId(url),key=pid?'id:'+pid:'url:'+canonical(url);if(seen.has(key))continue;seen.add(key);const raw=String(p.price??p.price_display??'').trim()||null,stores=String(p.stores??p.store_count_display??'').trim()||null;const ct=(title+' '+String(p.condition??'')+' '+String(p.card_text??'')).toLowerCase(),kt=(title+' '+String(p.product_kind??'')+' '+String(p.card_text??'')).toLowerCase();let condition='نامشخص';if(/کارکرده|استوک|دست.دوم/.test(ct))condition='کارکرده';else if(/آکبند|کالای نو|وضعیت نو/.test(ct))condition='نو';let productKind='نامشخص';if(/طرح|کپی|غیراصل/.test(kt))productKind='طرح';else if(/اصل(ی)?/.test(kt))productKind='اصلی';rows.push({query,product_id:pid||null,product_title:title,price_display:raw,price_toman:numeric(raw),store_count:numeric(stores??p.store_count),condition,product_kind:productKind,is_ad:typeof p.is_ad==='boolean'?p.is_ad:(/تبلیغ|آگهی/.test(String(p.card_text??''))?true:null),product_url:canonical(url),source_url:sourceUrl||null,captured_at:p.captured_at||new Date().toISOString()})}\nif(!rows.length)return[{json:{ok:false,statusCode:422,error:'No valid product cards found'}}];\nreturn[{json:{ok:true,count:rows.length,duplicate_count:products.length-rows.length,rows}}];"
+      },
+      "id": "b2010001-0000-4000-8000-000000000002",
+      "name": "Validate, Deduplicate & Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b2010001-0000-4000-8000-000000000003",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2010001-0000-4000-8000-000000000003",
+      "name": "Data Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "if($json.ok!==true||!Array.isArray($json.rows)||!$json.rows.length)return[{json:{ok:false,statusCode:$json.statusCode??422,error:$json.error??'No normalized rows'}}];return $json.rows.map(row=>({json:row}));"
+      },
+      "id": "b2010001-0000-4000-8000-000000000004",
+      "name": "Prepare Excel Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {
+          "fileName": "torob-products.xlsx",
+          "headerRow": true,
+          "sheetName": "Torob Products"
+        },
+        "putOutputFileInField": "data"
+      },
+      "id": "b2010001-0000-4000-8000-000000000005",
+      "name": "Create Excel",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        160,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "responseDataSource": "set",
+        "inputFieldName": "data",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Disposition",
+                "value": "attachment; filename=torob-products.xlsx"
+              }
+            ]
+          }
+        }
+      },
+      "id": "b2010001-0000-4000-8000-000000000006",
+      "name": "Return Excel File",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        400,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {ok:false,error:$json.error,statusCode:$json.statusCode||400} }}",
+        "options": {
+          "responseCode": "={{ $json.statusCode || 400 }}"
+        }
+      },
+      "id": "b2010001-0000-4000-8000-000000000007",
+      "name": "Return Validation Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -80,
+        160
+      ]
+    }
+  ],
+  "connections": {
+    "Browser Import Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate, Deduplicate & Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate, Deduplicate & Normalize": {
+      "main": [
+        [
+          {
+            "node": "Data Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Data Valid?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Excel Rows",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Validation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Excel Rows": {
+      "main": [
+        [
+          {
+            "node": "Create Excel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Excel": {
+      "main": [
+        [
+          {
+            "node": "Return Excel File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "pinData": {},
+  "meta": {}
+}

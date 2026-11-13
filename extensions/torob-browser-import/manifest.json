@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Torob Browser Import to Excel",
+  "version": "1.0.0",
+  "description": "Export visible Torob cards to authenticated n8n XLSX webhook.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "downloads"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "host_permissions": [
+    "https://torob.com/*",
+    "https://www.torob.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://torob.com/*",
+        "https://www.torob.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
